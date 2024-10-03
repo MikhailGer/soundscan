@@ -1,0 +1,9 @@
+gitignor/
+# Игнорируем файлы кэша компиляции
+__pycache__/
+*.pyc
+*.pyo
+.env
+.idea
+.log
+review
