@@ -73,15 +73,15 @@ class DeviceConfig(Base):
     SerialBaudRate = Column(Integer, default=115200)
 
     base_diameter = Column(Float, default=500.24)
-    base_motor_speed = Column(Float, default=1.0)
-    base_motor_accel = Column(Float, default=1.0)
-    base_motor_MaxSpeed = Column(Float, default=1.0)
+    base_motor_speed = Column(Float, default=800)
+    base_motor_accel = Column(Float, default=1600)
+    base_motor_MaxSpeed = Column(Float, default=8000)
 
-    head_motor_speed = Column(Float, default=1.0)
-    head_motor_accel = Column(Float, default=1.0)
-    head_motor_MaxSpeed = Column(Float, default=1.0)
-    head_motor_returning_speed = Column(Float, default=1.0)
-    head_motor_returning_accel = Column(Float, default=1.0)
+    head_motor_speed = Column(Float, default=800)
+    head_motor_accel = Column(Float, default=1600)
+    head_motor_MaxSpeed = Column(Float, default=8000)
+    head_motor_returning_speed = Column(Float, default=2000)
+    head_motor_returning_accel = Column(Float, default=3200)
 
     head_working_pos = Column(Float, default=300.0)
 

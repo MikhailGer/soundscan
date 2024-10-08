@@ -5,6 +5,7 @@ from typing import Optional
 from pydantic_settings import BaseSettings
 
 
+
 class Settings(BaseSettings):
     DB_URL: str
     DB_SCHEMA: str = "soundscan"

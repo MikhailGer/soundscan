@@ -1,12 +1,17 @@
 import json
 import logging
 import sys
+from codeop import compile_command
+from email.policy import default
 
 from PyQt5.QtCore import pyqtSlot
 from PyQt5.QtWidgets import QMainWindow, QLabel, QPushButton, QVBoxLayout, QWidget, QApplication
 
 from src.arduino.arduino_controller import ArduinoController
 from src.arduino.arduino_worker import ArduinoWorker
+
+from src.db import Session as DatabaseSession
+from src.models import DeviceConfig
 
 
 logging.basicConfig(
@@ -60,6 +65,8 @@ class MainWindow(QMainWindow):
 
         # Деактивируем кнопки управления до подключения к Arduino
         self.set_control_buttons_state(False)
+        self.connection_established = False
+        # self.get_motors_settings_from_db()
 
     # Слот для подключения к Arduino
     @pyqtSlot()
@@ -70,8 +77,11 @@ class MainWindow(QMainWindow):
     @pyqtSlot(bool)
     def on_connection_established(self, connected):
         if connected:
+            self.connection_established = True
             self.label_status.setText("Подключено к Arduino!")
             self.set_control_buttons_state(True)
+            self.get_motors_settings_from_db()
+
         else:
             self.label_status.setText("Ошибка подключения к Arduino.")
 
@@ -101,7 +111,6 @@ class MainWindow(QMainWindow):
     def start_base_motor(self):
         command = {"command": "set_motor_on", "state": True}
         self.arduino_worker.send_command(command)
-
     def stop_base_motor(self):
         command = {"command": "set_motor_on", "state": False}
         self.arduino_worker.send_command(command)
@@ -113,6 +122,38 @@ class MainWindow(QMainWindow):
 
     def move_head_down(self):
         command = {"command": "move_head_down", "pressure": 10}  # Например, установить порог давления
+        self.arduino_worker.send_command(command)
+
+    def get_motors_settings_from_db(self):
+        if self.connection_established:
+            session = DatabaseSession()
+            try:
+                config = session.query(DeviceConfig).first()
+                if config:
+                    start_speed_head = config.head_motor_speed
+                    accel_head = config.head_motor_accel
+                    MaxSpeed_head = config.head_motor_MaxSpeed
+
+                    start_speed_base = config.base_motor_speed
+                    accel_base = config.base_motor_accel
+                    MaxSpeed_base = config.base_motor_MaxSpeed
+                    command = {"command": "set_head_settings", "speed": start_speed_head , "accel": accel_head, "MaxSpeed": MaxSpeed_head}
+                    self.arduino_worker.send_command(command)
+                    command = {"command": "set_base_settings", "speed": start_speed_base, "accel": accel_base,
+                               "MaxSpeed": MaxSpeed_base}
+                    self.arduino_worker.send_command(command)
+                else:
+                   self.set_default_motor_settings()
+            finally:
+                session.close()
+
+    def set_default_motor_settings(self):
+        defaults = DeviceConfig();
+        command = {"command": "set_head_settings", "speed": defaults.head_motor_speed, "accel": defaults.head_motor_accel,
+                   "MaxSpeed": defaults.head_motor_MaxSpeed}
+        self.arduino_worker.send_command(command)
+        command = {"command": "set_base_settings", "speed": defaults.base_motor_speed, "accel": defaults.base_motor_accel,
+                   "MaxSpeed": defaults.base_motor_MaxSpeed}
         self.arduino_worker.send_command(command)
 
     # Включение/выключение кнопок управления

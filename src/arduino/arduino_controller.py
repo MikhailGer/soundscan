@@ -5,7 +5,7 @@ from PyQt5.QtCore import QObject, pyqtSignal, QTimer
 from PyQt5.QtSerialPort import QSerialPort, QSerialPortInfo
 
 from src.arduino.arduino_worker import ArduinoWorker
-from src.arduino.old.port_checker import PortChecker
+# from src.arduino.port_checker import PortChecker
 from src.db import Session as DatabaseSession
 from src.models import DeviceConfig
 
@@ -107,8 +107,10 @@ class ArduinoController():
         logger.info(f"Подключение к найденным портам")
         for port in port_list:
             logger.info(f"Проверка порта: {port}")
-            self.connect_to_device(port, 115200)
+            # self.connect_to_device(port, 115200)#исправлена ошибка - вместо имени порта отправлялся объект порта
+            self.connect_to_device(port.portName(), 115200)
             if self.serial.isOpen():
                 self.serial.close()
-                self.save_port_to_db(port, 115200)
+                # self.save_port_to_db(port, 115200)исправлена ошибка - вместо имени порта отправлялся объект порта
+                self.save_port_to_db(port.portName(), 115200)
                 break

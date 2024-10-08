@@ -4,7 +4,7 @@ import logging
 from PyQt5 import uic
 from PyQt5.QtWidgets import QApplication, QMainWindow
 
-from src.arduino.old.arduino_controller import ArduinoController
+from src.arduino.arduino_controller import ArduinoController
 from src.windows.change_history import setup_change_history_tab
 from src.windows.devise_config import setup_device_config_tab
 from src.windows.disk_type import setup_disk_type_tab
