@@ -29,7 +29,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         logger.info("Инициализация главного окна")  # Логирование инициализации главного окна
         try:
-            uic.loadUi('interface.ui', self)  # Загрузка интерфейса
+            uic.loadUi('fixed_interface.ui', self)  # Загрузка интерфейса
             logger.info("Интерфейс загружен успешно")
 
             # Инициализация контроллера Arduino
