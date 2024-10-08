@@ -43,13 +43,19 @@ class MainWindow(QMainWindow):
         self.button_motor_off = QPushButton("Выключить мотор базы")
         self.button_move_head_up = QPushButton("Поднять головку")
         self.button_move_head_down = QPushButton("Опустить головку")
+        self.button_ding = QPushButton("ding!")
+        self.button_return_base = QPushButton("Вернуть базу на старт")
+        self.button_find_blade = QPushButton("Найти лопатку")
+
 
         # Подключение кнопок к слотам
         self.button_motor_on.clicked.connect(self.start_base_motor)
         self.button_motor_off.clicked.connect(self.stop_base_motor)
         self.button_move_head_up.clicked.connect(self.move_head_up)
         self.button_move_head_down.clicked.connect(self.move_head_down)
-
+        self.button_ding.clicked.connect(self.ding)
+        self.button_return_base.clicked.connect(self.return_base)
+        self.button_find_blade.clicked.connect(self.find_blade)
         # Макет
         layout = QVBoxLayout()
         layout.addWidget(self.label_status)
@@ -58,6 +64,9 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.button_motor_off)
         layout.addWidget(self.button_move_head_up)
         layout.addWidget(self.button_move_head_down)
+        layout.addWidget(self.button_find_blade)
+        layout.addWidget(self.button_ding)
+        layout.addWidget(self.button_return_base)
 
         container = QWidget()
         container.setLayout(layout)
@@ -103,9 +112,10 @@ class MainWindow(QMainWindow):
         weight = data.get("current_weight", 0)
         motor_on = data.get("base_motor_on", False)
         head_position = data.get("head_position", "unknown")
+        is_blade_found = data.get("is_blade_found")
 
         self.label_status.setText(
-            f"Текущий вес: {weight} кг, Мотор базы: {'включен' if motor_on else 'выключен'}, Позиция головки: {head_position}")
+            f"Текущий вес: {weight} кг, Мотор базы: {'включен' if motor_on else 'выключен'}, Позиция головки: {head_position}, Лопатка найдена: {is_blade_found}")
 
     # Управление мотором базы
     def start_base_motor(self):
@@ -156,12 +166,28 @@ class MainWindow(QMainWindow):
                    "MaxSpeed": defaults.base_motor_MaxSpeed}
         self.arduino_worker.send_command(command)
 
+    def find_blade(self):
+        command = {"command": "find_blade"}
+        self.arduino_worker.send_command(command)
+
+    def return_base(self):
+
+        command = {"command": "return_base"}
+        self.arduino_worker.send_command(command)
+
+    def ding(self):
+        command = {"command": "ding"}
+        self.arduino_worker.send_command(command)
+
     # Включение/выключение кнопок управления
     def set_control_buttons_state(self, state):
         self.button_motor_on.setEnabled(state)
         self.button_motor_off.setEnabled(state)
         self.button_move_head_up.setEnabled(state)
         self.button_move_head_down.setEnabled(state)
+        self.button_ding.setEnabled(state)
+        self.button_return_base.setEnabled(state)
+        self.button_find_blade.setEnabled(state)
 
     # Обработка закрытия окна и завершения потока
     def closeEvent(self, event):

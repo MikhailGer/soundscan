@@ -212,12 +212,9 @@ void find_blade(){
         updateTenzoData();
         if (blade_found == false &&(currentTenzo >= pressure_to_find_blade)){
           blade_found = true;
-          ding();
+//          ding();
           stepper_base.brake();
-          jsonDoc.clear();
-          jsonDoc["is_blade_found"] = blade_found;
-          serializeJson(jsonDoc, Serial);  // Отправка JSON данных
-          Serial.println(); 
+          sendStatus();
           }
          }
     
@@ -235,6 +232,7 @@ void ding(){
       stepper_base.brake();
       moveHeadUp(speed_head,accel_head,MaxSpeed_head);  // Автоматически поднимаем головку, если давление превышено
       blade_found == false;
+      sendStatus();
   }
   }
 // Отправка статуса в JSON формате
@@ -263,6 +261,8 @@ void sendStatus() {
   jsonDoc["current_weight"] = currentTenzo;
   jsonDoc["base_motor_on"] = Is_motor_on;
   jsonDoc["head_position"] = head_position ? "down" : "up";
+  jsonDoc["is_blade_found"] = blade_found;
+
   serializeJson(jsonDoc, Serial);  // Отправка JSON данных
   Serial.println();  // Завершающий символ строки
 }
