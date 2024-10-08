@@ -158,7 +158,7 @@ class MainWindow(QMainWindow):
                 session.close()
 
     def set_default_motor_settings(self):
-        defaults = DeviceConfig();
+        defaults = DeviceConfig()
         command = {"command": "set_head_settings", "speed": defaults.head_motor_speed, "accel": defaults.head_motor_accel,
                    "MaxSpeed": defaults.head_motor_MaxSpeed}
         self.arduino_worker.send_command(command)
@@ -191,7 +191,7 @@ class MainWindow(QMainWindow):
 
     # Обработка закрытия окна и завершения потока
     def closeEvent(self, event):
-        self.arduino_worker.stop()  # Остановка потока перед выходом
+        self.arduino_worker.stop()  # остановка потока перед выходом
         event.accept()
 
 
