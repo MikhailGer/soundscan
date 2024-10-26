@@ -5,7 +5,7 @@ from PyQt5.QtCore import QThread, pyqtSignal, QObject, pyqtSlot
 from PyQt5.QtWidgets import QApplication, QMainWindow, QPushButton, QVBoxLayout, QWidget, QLabel
 import serial
 import time
-
+import threading
 
 # Класс для взаимодействия с Arduino в отдельном потоке
 class ArduinoWorker(QThread):
@@ -19,6 +19,9 @@ class ArduinoWorker(QThread):
         self.baudrate = baudrate
         self.is_running = True
         self.arduino = None
+        self.command_event = threading.Event()
+        self.expected_response = None
+        self.response = None
 
     def run(self):
         # Подключение к Arduino
@@ -40,26 +43,101 @@ class ArduinoWorker(QThread):
 
         # Основной цикл для чтения данных
         while self.is_running:
-            if self.arduino.in_waiting > 0:
-                try:
-                    data = self.arduino.readline().decode().strip()
-                    if data:
+            try:
+                data = self.arduino.readline().decode().strip()
+                if data:
+                    # self.data_received.emit(data)
+                    # Проверяем, ожидаем ли мы этот ответ
+                    if data == self.expected_response:
+                        self.response = data
+                        self.command_event.set()
+                    else:
                         self.data_received.emit(data)
-                except Exception as e:
-                    print(f"Ошибка чтения: {e}")
+            except Exception as e:
+                print(f"Ошибка чтения: {e}")
 
-    def send_command(self, command):
-        try:
-            json_command = json.dumps(command) + '\n'  # Преобразование команды в JSON и добавление новой строки
-            self.arduino.write(json_command.encode())  # Отправка команды в Arduino
-        except Exception as e:
-            print(f"Ошибка отправки команды: {e}")
+    # def send_command(self, command):
+    #     try:
+    #         json_command = json.dumps(command) + '\n'  # Преобразование команды в JSON и добавление новой строки
+    #         self.arduino.write(json_command.encode())  # Отправка команды в Arduino
+    #         print(json_command + "FROM PC")
+    #     except Exception as e:
+    #         print(f"Ошибка отправки команды: {e}")
 
     def stop(self):
         self.is_running = False
         if self.arduino:
             self.arduino.close()
 
+    def send_command(self, command, retries=3, timeout=5):
+        attempt = 0
+        json_command = json.dumps(command)
+        self.expected_response = json_command
+        json_command += '\n'
+
+        while attempt < retries:
+            try:
+                self.command_event.clear()
+                self.arduino.write(json_command.encode())
+                print(f"Отправка команды (попытка {attempt + 1}): {json_command}")
+
+                # Ждем ответа с таймаутом
+                if self.command_event.wait(timeout):
+                    print("Получен ожидаемый ответ от Arduino.")
+                    return True  # Успешно получили ответ
+                else:
+                    print("Таймаут ожидания ответа от Arduino.")
+            except Exception as e:
+                print(f"Ошибка отправки команды: {e}")
+
+            attempt += 1
+
+        print("Не удалось получить ответ от Arduino после нескольких попыток.")
+        return False
+    # def send_command(self, command, retries=3, timeout=5):
+    #     attempt = 0
+    #     response_received = False
+    #     json_command = json.dumps(command) + '\n'
+    #
+    #     while attempt < retries and not response_received:
+    #         try:
+    #             self.arduino.write(json_command.encode())
+    #             print(f"Отправка команды (попытка {attempt + 1}): {json_command}")
+    #
+    #             # Создаем цикл событий для ожидания ответа
+    #             loop = QEventLoop()
+    #             timer = QTimer()
+    #             timer.setSingleShot(True)
+    #             timer.timeout.connect(loop.quit)
+    #
+    #             # Подключаемся к сигналу data_received
+    #             def on_data_received(data):
+    #                 print('on_data_received')
+    #                 nonlocal response_received
+    #                 print(data, "data")
+    #                 print(command, 'command')
+    #                 if data == command:  # Проверяем, что ответ совпадает с отправленной командой
+    #                     print('same')
+    #
+    #                     response_received = True
+    #                     loop.quit()
+    #
+    #             self.data_received.connect(on_data_received)
+    #
+    #             # Запускаем таймер и цикл событий
+    #             timer.start(timeout * 1000)  # Тайм-аут в миллисекундах
+    #             loop.exec_()
+    #
+    #             # Отключаемся от сигнала после завершения ожидания
+    #             self.data_received.disconnect(on_data_received)
+    #
+    #         except Exception as e:
+    #             print(f"Ошибка отправки команды: {e}")
+    #
+    #         attempt += 1
+    #
+    #     if not response_received:
+    #         print("Не удалось получить ответ от Arduino после нескольких попыток.")
 
 # Основной интерфейс приложения
 # class MainWindow(QMainWindow):

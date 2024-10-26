@@ -17,7 +17,6 @@ def setup_disk_type_tab(main_window):
     """
     logger.info("Настройка вкладки 'Типы дисков'")
     # Подгружаем данные при переходе на вкладку
-    main_window.tabWidget.currentChanged.connect(lambda index: on_tab_changed(main_window, index))
 
     # Привязываем события к кнопкам
     main_window.dt_add.clicked.connect(lambda: add_disk_type(main_window))
@@ -27,14 +26,15 @@ def setup_disk_type_tab(main_window):
     # Подключение события выбора для QListWidget
     main_window.dt_disk_types.itemSelectionChanged.connect(lambda: update_disk_type_details(main_window))
 
+# теперь on_tab_changed вызывается 1 раз при инициализации приложения и управляет вкладками
 
-def on_tab_changed(main_window, index):
-    """
-    Событие при переключении вкладок. Обновляем список типов дисков.
-    """
-    if index == main_window.tabWidget.indexOf(main_window.disk_type):
-        logger.info("Переход на вкладку 'Типы дисков'. Обновление списка типов дисков.")
-        load_disk_types(main_window)
+# def on_tab_changed(main_window, index):
+#     """
+#     Событие при переключении вкладок. Обновляем список типов дисков.
+#     """
+#     if index == main_window.tabWidget.indexOf(main_window.disk_type):
+#         logger.info("Переход на вкладку 'Типы дисков'. Обновление списка типов дисков.")
+#         load_disk_types(main_window)
 
 
 def load_disk_types(main_window):
@@ -99,12 +99,24 @@ def remove_disk_type(main_window):
         try:
             # Удаляем запись из базы данных
             disk_type = session.query(DiskType).get(disk_type_id)
-            session.delete(disk_type)
-            session.commit()
+            if disk_type:
+                session.delete(disk_type)
+                session.commit()
+                # ...
+                main_window.dt_name.clear()
+                main_window.dt_diameter.clear()
+                main_window.dt_blade_distance.clear()
+
+            else:
+                logger.error(f"Тип диска с ID {disk_type_id} не найден")
+
             logger.info(f"Тип диска с ID {disk_type_id} удален")
 
             # Удаляем элемент из списка
             main_window.dt_disk_types.takeItem(main_window.dt_disk_types.row(selected_item))
+            # чистим поля от старых данных
+
+
         except Exception as e:
             logger.error(f"Ошибка удаления типа диска с ID {disk_type_id}: {e}")
         finally:

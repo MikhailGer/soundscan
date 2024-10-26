@@ -3,7 +3,7 @@ import logging
 import sys
 from codeop import compile_command
 from email.policy import default
-
+import time
 from PyQt5.QtCore import pyqtSlot
 from PyQt5.QtWidgets import QMainWindow, QLabel, QPushButton, QVBoxLayout, QWidget, QApplication
 
@@ -46,7 +46,8 @@ class MainWindow(QMainWindow):
         self.button_ding = QPushButton("ding!")
         self.button_return_base = QPushButton("Вернуть базу на старт")
         self.button_find_blade = QPushButton("Найти лопатку")
-
+        self.button_status = QPushButton("Получить текущий статус установки")
+        self.button_pull_blade = QPushButton("Натянуть лопатку")
 
         # Подключение кнопок к слотам
         self.button_motor_on.clicked.connect(self.start_base_motor)
@@ -56,6 +57,8 @@ class MainWindow(QMainWindow):
         self.button_ding.clicked.connect(self.ding)
         self.button_return_base.clicked.connect(self.return_base)
         self.button_find_blade.clicked.connect(self.find_blade)
+        self.button_status.clicked.connect(self.status)
+        self.button_pull_blade.clicked.connect(self.pull)
         # Макет
         layout = QVBoxLayout()
         layout.addWidget(self.label_status)
@@ -67,7 +70,8 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.button_find_blade)
         layout.addWidget(self.button_ding)
         layout.addWidget(self.button_return_base)
-
+        layout.addWidget(self.button_status)
+        layout.addWidget(self.button_pull_blade)
         container = QWidget()
         container.setLayout(layout)
         self.setCentralWidget(container)
@@ -89,8 +93,6 @@ class MainWindow(QMainWindow):
             self.connection_established = True
             self.label_status.setText("Подключено к Arduino!")
             self.set_control_buttons_state(True)
-            self.get_motors_settings_from_db()
-
         else:
             self.label_status.setText("Ошибка подключения к Arduino.")
 
@@ -105,17 +107,24 @@ class MainWindow(QMainWindow):
             self.update_ui(json_data)
         except json.JSONDecodeError:
             print(f"Некорректные данные: {data}")
+            if data == "Arduino готово к приему данных":
+                self.get_motors_settings_from_db()
+
 
     # Обновление интерфейса на основе данных от Arduino
     def update_ui(self, data):
         # Пример обновления UI на основе полученных данных
-        weight = data.get("current_weight", 0)
-        motor_on = data.get("base_motor_on", False)
+        find_blade_in_progress = data.get("find_blade_in_progress", "unknown")
+        blade_found = data.get("blade_found", "unknown")
         head_position = data.get("head_position", "unknown")
-        is_blade_found = data.get("is_blade_found")
-
+        pulling_blade = data.get("pulling_blade", "unknown")
+        pressure_reached = data.get("pressure_reached","unknown")
+        making_ding = data.get("making_ding","unknown")
+        prepearing_for_new_blade = data.get("prepearing_for_new_blade","unknown")
+        base_returning = data.get("base_returning", "unknown")
         self.label_status.setText(
-            f"Текущий вес: {weight} кг, Мотор базы: {'включен' if motor_on else 'выключен'}, Позиция головки: {head_position}, Лопатка найдена: {is_blade_found}")
+            f"Ведется поиск лопатки: {find_blade_in_progress}, Лопатка найдена: {blade_found}, Позиция головки: {head_position}, Лопатка натягивается: {pulling_blade}"
+            f"Достигнуто нужное давление на лопатку: {pressure_reached}, Лопатка дергается: {making_ding}, Подготовка к следующей: {prepearing_for_new_blade}, База возвращается: {base_returning}")
 
     # Управление мотором базы
     def start_base_motor(self):
@@ -131,10 +140,11 @@ class MainWindow(QMainWindow):
         self.arduino_worker.send_command(command)
 
     def move_head_down(self):
-        command = {"command": "move_head_down", "pressure": 10}  # Например, установить порог давления
+        command = {"command": "move_head_down", "pressure": 100}  # Например, установить порог давления
         self.arduino_worker.send_command(command)
 
     def get_motors_settings_from_db(self):
+        print("get_motors_settings_from_db")
         if self.connection_established:
             session = DatabaseSession()
             try:
@@ -147,11 +157,16 @@ class MainWindow(QMainWindow):
                     start_speed_base = config.base_motor_speed
                     accel_base = config.base_motor_accel
                     MaxSpeed_base = config.base_motor_MaxSpeed
-                    command = {"command": "set_head_settings", "speed": start_speed_head , "accel": accel_head, "MaxSpeed": MaxSpeed_head}
+                    command = {"command": "set_head_settings", "speed": start_speed_head, "accel": accel_head, "MaxSpeed": MaxSpeed_head}
                     self.arduino_worker.send_command(command)
+
                     command = {"command": "set_base_settings", "speed": start_speed_base, "accel": accel_base,
                                "MaxSpeed": MaxSpeed_base}
+                    time.sleep(0.1) #БЕЗ ЗАДЕРКИ ВЕСЬ ПАРСИНГ С АРДУИНО СЫПЕТСЯ
+
                     self.arduino_worker.send_command(command)
+
+
                 else:
                    self.set_default_motor_settings()
             finally:
@@ -179,6 +194,14 @@ class MainWindow(QMainWindow):
         command = {"command": "ding"}
         self.arduino_worker.send_command(command)
 
+    def pull(self):
+        command = {"command": "pull_blade"}
+        self.arduino_worker.send_command(command)
+
+    def status(self):
+        command = {"command": "status"}
+        self.arduino_worker.send_command(command)
+
     # Включение/выключение кнопок управления
     def set_control_buttons_state(self, state):
         self.button_motor_on.setEnabled(state)
@@ -188,6 +211,8 @@ class MainWindow(QMainWindow):
         self.button_ding.setEnabled(state)
         self.button_return_base.setEnabled(state)
         self.button_find_blade.setEnabled(state)
+        self.button_status.setEnabled(state)
+        self.button_pull_blade.setEnabled(state)
 
     # Обработка закрытия окна и завершения потока
     def closeEvent(self, event):

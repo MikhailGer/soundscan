@@ -15,19 +15,18 @@ def setup_change_history_tab(main_window):
     """
     logger.info("Настройка логики вкладки 'История измерений'")
     # Привязываем события
-    main_window.tabWidget.currentChanged.connect(lambda index: on_tab_changed(main_window, index))
     main_window.ch_disk_type.currentIndexChanged.connect(lambda: update_measurements(main_window))
     main_window.ch_measurements.itemSelectionChanged.connect(lambda: update_blade_results(main_window))
 
-
-def on_tab_changed(main_window, index):
-    """
-    Событие при переключении вкладок. Обновляем ComboBox с типами дисков.
-    """
-    logger.info(f"Переключение на вкладку с индексом {index}")
-    if index == main_window.tabWidget.indexOf(main_window.change_history):
-        logger.info("Вкладка 'История измерений' активна, обновляем список типов дисков")
-        update_disk_type_combobox(main_window)
+# теперь on_tab_changed вызывается 1 раз при инициализации приложения и управляет вкладками
+# def on_tab_changed(main_window, index):
+#     """
+#     Событие при переключении вкладок. Обновляем ComboBox с типами дисков.
+#     """
+#     logger.info(f"Переключение на вкладку с индексом {index}")
+#     if index == main_window.tabWidget.indexOf(main_window.change_history):
+#         logger.info("Вкладка 'История измерений' активна, обновляем список типов дисков")
+#         update_disk_type_combobox(main_window)
 
 
 def update_disk_type_combobox(main_window):

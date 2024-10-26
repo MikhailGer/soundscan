@@ -14,17 +14,17 @@ def setup_device_config_tab(main_window):
     Настройка логики для вкладки "Параметры установки".
     """
     logger.info("Настройка вкладки 'Параметры установки'")
-    main_window.tabWidget.currentChanged.connect(lambda index: on_tab_changed(main_window, index))
     main_window.dc_save.clicked.connect(lambda: save_device_config(main_window))
 
+# теперь on_tab_changed вызывается 1 раз при инициализации приложения и управляет вкладками
 
-def on_tab_changed(main_window, index):
-    """
-    Событие при переключении вкладок. Загружаем данные конфигурации устройства.
-    """
-    if index == main_window.tabWidget.indexOf(main_window.devise_config):
-        logger.info("Вкладка 'Параметры установки' активна, загружаем конфигурацию устройства")
-        load_device_config(main_window)
+# def on_tab_changed(main_window, index):
+#     """
+#     Событие при переключении вкладок. Загружаем данные конфигурации устройства.
+#     """
+#     if index == main_window.tabWidget.indexOf(main_window.devise_config):
+#         logger.info("Вкладка 'Параметры установки' активна, загружаем конфигурацию устройства")
+#         load_device_config(main_window)
 
 
 def load_device_config(main_window):

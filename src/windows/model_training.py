@@ -10,27 +10,27 @@ logger = logging.getLogger(__name__)
 
 
 
-def setup_model_training_tab(main_window):
+def setup_model_training_tab(self):
     """
     Настройка логики для вкладки "Обучение ИИ".
     """
     logger.info("Настройка вкладки 'Обучение ИИ'")
     # Привязываем события
-    main_window.tabWidget.currentChanged.connect(lambda index: on_tab_changed(main_window, index))
-    main_window.mt_disk_type.currentIndexChanged.connect(lambda: update_measurements(main_window))
-    main_window.mt_measurements.itemSelectionChanged.connect(lambda: update_blade_results(main_window))
+    self.mt_disk_type.currentIndexChanged.connect(lambda: update_measurements(self))
+    self.mt_measurements.itemSelectionChanged.connect(lambda: update_blade_results(self))
+
+# теперь on_tab_changed вызывается 1 раз при инициализации приложения и управляет вкладками
+
+# def on_tab_changed(self, index):
+#     """
+#     Событие при переключении вкладок. Обновляем ComboBox с типами дисков.
+#     """
+#     if index == self.tabWidget.indexOf(self.model_training):
+#         logger.info("Переход на вкладку 'Обучение ИИ'. Обновление списка типов дисков.")
+#         update_disk_type_combobox(self)
 
 
-def on_tab_changed(main_window, index):
-    """
-    Событие при переключении вкладок. Обновляем ComboBox с типами дисков.
-    """
-    if index == main_window.tabWidget.indexOf(main_window.model_training):
-        logger.info("Переход на вкладку 'Обучение ИИ'. Обновление списка типов дисков.")
-        update_disk_type_combobox(main_window)
-
-
-def update_disk_type_combobox(main_window):
+def update_disk_type_combobox(self):
     """
     Обновление ComboBox mt_disk_type из таблицы DiskType.
     """
@@ -41,25 +41,25 @@ def update_disk_type_combobox(main_window):
         logger.info(f"Загружено {len(disk_types)} типов дисков")
 
         # Очищаем ComboBox и связанные элементы
-        main_window.mt_disk_type.clear()
-        main_window.mt_measurements.clear()
-        main_window.mt_blade_results.clearContents()
+        self.mt_disk_type.clear()
+        self.mt_measurements.clear()
+        self.mt_blade_results.clearContents()
 
         # Заполняем ComboBox типами дисков
         for disk_type in disk_types:
-            main_window.mt_disk_type.addItem(disk_type.name, disk_type.id)
+            self.mt_disk_type.addItem(disk_type.name, disk_type.id)
     except Exception as e:
         logger.error(f"Ошибка при загрузке типов дисков: {e}")
     finally:
         session.close()
 
 
-def update_measurements(main_window):
+def update_measurements(self):
     """
     Обновление ListWidget mt_measurements для выбранного типа диска.
     Добавление чекбоксов для изменения поля is_training.
     """
-    selected_disk_type_id = main_window.mt_disk_type.currentData()  # Получаем ID выбранного типа диска
+    selected_disk_type_id = self.mt_disk_type.currentData()  # Получаем ID выбранного типа диска
     logger.info(f"Обновление измерений для типа диска с ID {selected_disk_type_id}")
 
     if selected_disk_type_id:
@@ -69,11 +69,11 @@ def update_measurements(main_window):
             logger.info(f"Загружено {len(disk_scans)} измерений для типа диска ID {selected_disk_type_id}")
 
             # Очищаем ListWidget
-            main_window.mt_measurements.clear()
+            self.mt_measurements.clear()
 
             # Заполняем ListWidget новыми измерениями и добавляем чекбоксы
             for scan in disk_scans:
-                item = QListWidgetItem(main_window.mt_measurements)
+                item = QListWidgetItem(self.mt_measurements)
                 item.setText(scan.name)
                 item.setData(Qt.UserRole, scan.id)  # Сохраняем ID измерения
 
@@ -97,7 +97,7 @@ def update_measurements(main_window):
                 layout.setContentsMargins(0, 0, 50, 0)  # отступы
                 widget.setLayout(layout)
 
-                main_window.mt_measurements.setItemWidget(item, widget)
+                self.mt_measurements.setItemWidget(item, widget)
                 checkbox.stateChanged.connect(partial(change_is_training_state, scan.id))
         except Exception as e:
             logger.error(f"Ошибка при обновлении измерений для типа диска ID {selected_disk_type_id}: {e}")
@@ -123,11 +123,11 @@ def change_is_training_state(scan_id, state):
         session.close()
 
 
-def update_blade_results(main_window):
+def update_blade_results(self):
     """
     Обновление QTableWidget mt_blade_results для выбранного измерения.
     """
-    selected_measurement_item = main_window.mt_measurements.currentItem()
+    selected_measurement_item = self.mt_measurements.currentItem()
     if selected_measurement_item:
         selected_scan_id = selected_measurement_item.data(Qt.UserRole)  # Получаем ID измерения
         logger.info(f"Обновление результатов для измерения ID {selected_scan_id}")
@@ -137,21 +137,21 @@ def update_blade_results(main_window):
             blades = session.query(Blade).filter_by(disk_scan_id=selected_scan_id).all()
             logger.info(f"Загружено {len(blades)} лопаток для измерения ID {selected_scan_id}")
 
-            main_window.mt_blade_results.clearContents()
-            main_window.mt_blade_results.setRowCount(len(blades))  # Устанавливаем количество строк
-            main_window.mt_blade_results.setColumnCount(3)
-            main_window.mt_blade_results.setHorizontalHeaderLabels(["Номер лопатки", "Скан", "Дефект"])
+            self.mt_blade_results.clearContents()
+            self.mt_blade_results.setRowCount(len(blades))  # Устанавливаем количество строк
+            self.mt_blade_results.setColumnCount(3)
+            self.mt_blade_results.setHorizontalHeaderLabels(["Номер лопатки", "Скан", "Дефект"])
 
             for row, blade in enumerate(blades):
-                main_window.mt_blade_results.setItem(row, 0, QTableWidgetItem(str(blade.num)))
-                main_window.mt_blade_results.setItem(row, 1, QTableWidgetItem(blade.scan))
+                self.mt_blade_results.setItem(row, 0, QTableWidgetItem(str(blade.num)))
+                self.mt_blade_results.setItem(row, 1, QTableWidgetItem(blade.scan))
                 prediction = "Да" if blade.prediction else "Нет"
-                main_window.mt_blade_results.setItem(row, 2, QTableWidgetItem(prediction))
+                self.mt_blade_results.setItem(row, 2, QTableWidgetItem(prediction))
 
-            main_window.mt_blade_results.resizeColumnsToContents()
-            main_window.mt_blade_results.resizeRowsToContents()
+            self.mt_blade_results.resizeColumnsToContents()
+            self.mt_blade_results.resizeRowsToContents()
 
-            header = main_window.mt_blade_results.horizontalHeader()
+            header = self.mt_blade_results.horizontalHeader()
             header.setSectionResizeMode(QHeaderView.Stretch)
         except Exception as e:
             logger.error(f"Ошибка при обновлении результатов для измерения ID {selected_scan_id}: {e}")
