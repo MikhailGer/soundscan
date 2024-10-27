@@ -1,12 +1,12 @@
 import logging
 from operator import index
-
+from PyQt5.QtWidgets import QHeaderView
 from PyQt5.QtSerialPort import QSerialPort
 from PyQt5.QtWidgets import QTableWidgetItem, QTabBar, QTabWidget
 from src.db import Session
-from src.models import DiskType, Blade
+from src.models import DiskType, Blade, DiskScan
 
-# from Scanning import Scanning
+from Scanning import Scanning
 
 #классы для блокировки интерфейса
 class NonSwitchableTabBar(QTabBar):
@@ -108,9 +108,9 @@ def start_control(main_window):
                         set_controls_enabled(main_window, False)  # Блокируем элементы
                         # Запуск контроля на Arduino
                         logger.info("Отправка команды на старт контроля")
-                        # main_window.current_scan = Scanning(disk_type.id, main_window.arduino_worker)
-                        # main_window.current_scan.start_scan()
-                        # main_window.current_scan.scanning_finished.connect(lambda: stop_control(main_window))
+                        main_window.current_scan = Scanning(disk_type.id, main_window.arduino_worker)
+                        main_window.current_scan.start_scan()
+                        main_window.current_scan.scanning_finished.connect(lambda: stop_control(main_window))
                     else:
                         logger.error(f"Тип диска с именем '{selected_item}' не найден.")
 
@@ -128,6 +128,8 @@ def stop_control(main_window):
     Остановка процесса контроля.
     """
     logger.info("Остановка процесса контроля")
+    main_window.current_scan.stop()
+
     # arduino.stop_mode()  # Остановка контроля на Arduino
     set_controls_enabled(main_window, True)  # Разблокируем элементы
     logger.info("Контроль завершен и элементы интерфейса разблокированы")
@@ -139,28 +141,48 @@ def update_blade_fields(main_window):
     selected_item = main_window.nm_disk_type.currentText()
 
     if selected_item:
-            # Используем контекстный менеджер для автоматического закрытия сессии
-            with Session() as session:
-                # Получаем тип диска из базы данных по имени
-                disk_type = session.query(DiskType).filter_by(name=selected_item).first()
+        with Session() as session:
+            # Получаем DiskType по имени
+            disk_type = session.query(DiskType).filter_by(name=selected_item).first()
 
-                try:
-                    blades = session.query(Blade).filter_by(disk_scan_id=disk_type.id).all()
-                    logger.info(f"Загружено {len(blades)} лопаток для контроля")
+            if not disk_type:
+                logger.error(f"DiskType с именем '{selected_item}' не найден.")
+                return
 
-                    # Заполнение таблицы измерений
-                    main_window.nm_measurements.setRowCount(len(blades))
-                    main_window.nm_measurements.setColumnCount(2)
-                    main_window.nm_measurements.setHorizontalHeaderLabels(["№", "Результат"])
+            try:
+                # Получаем все DiskScan для этого DiskType
+                disk_scans = session.query(DiskScan).filter_by(disk_type_id=disk_type.id).all()
 
-                    for row, blade in enumerate(blades):
-                        main_window.nm_measurements.setItem(row, 0, QTableWidgetItem(str(blade.num)))
-                        result = "Годен" if blade.prediction else "Не годен"
-                        main_window.nm_measurements.setItem(row, 1, QTableWidgetItem(result))
-                        logger.debug(f"Лопатка {blade.num}: {result}")
-                except Exception as e:
-                    logger.error(f"Ошибка при обновлении данных лопаток: {e}", exc_info=True)
+                if not disk_scans:
+                    logger.error(f"Для DiskType с id {disk_type.id} нет доступных DiskScan.")
+                    return
 
+                # Собираем все id DiskScan
+                disk_scan_ids = [ds.id for ds in disk_scans]
+
+                # Получаем Blade, связанные с этими DiskScan
+                blades = session.query(Blade).filter(Blade.disk_scan_id.in_(disk_scan_ids)).all()
+
+                logger.info(f"Загружено {len(blades)} лопаток для DiskType с id {disk_type.id}.")
+
+                # Заполнение таблицы измерений
+                main_window.nm_measurements.setRowCount(len(blades))
+                main_window.nm_measurements.setColumnCount(3)
+                main_window.nm_measurements.setHorizontalHeaderLabels(["№ DiskScan", "№ Лопатки", "Результат"])
+                header = main_window.nm_measurements.horizontalHeader()
+                header.setSectionResizeMode(QHeaderView.Stretch)
+
+                for row, blade in enumerate(blades):
+                    # Номер DiskScan
+                    main_window.nm_measurements.setItem(row, 0, QTableWidgetItem(str(blade.disk_scan_id)))
+                    # Номер лопатки
+                    main_window.nm_measurements.setItem(row, 1, QTableWidgetItem(str(blade.num)))
+                    # Результат
+                    result = "Годен" if blade.prediction else "Не годен"
+                    main_window.nm_measurements.setItem(row, 2, QTableWidgetItem(result))
+                    logger.debug(f"DiskScan {blade.disk_scan_id}, Лопатка {blade.num}: {result}")
+            except Exception as e:
+                logger.error(f"Ошибка при обновлении данных лопаток: {e}", exc_info=True)
     else:
         logger.error("Не выбран тип диска для сканирования.")
 

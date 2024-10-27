@@ -6,7 +6,10 @@ import logging
 import sys
 from codeop import compile_command
 from email.policy import default
+
+from datetime import datetime
 import time
+
 from PyQt5.QtCore import pyqtSlot, pyqtSignal
 
 from src.arduino.arduino_controller import ArduinoController
@@ -14,6 +17,7 @@ from src.arduino.arduino_worker import ArduinoWorker
 
 from src.db import Session as DatabaseSession
 from src.models import DeviceConfig
+from src.models import DiskScan, Blade, DiskType
 
 
 logging.basicConfig(
@@ -32,6 +36,7 @@ class Scanning(QThread):
     def __init__(self, disk_type_id,arduino_worker):
         super().__init__()
 
+        self.data_updated = False
         self.base_returning = None
         self.preparing_for_new_blade = None
         self.making_ding = None
@@ -51,6 +56,9 @@ class Scanning(QThread):
         self.arduino_worker.data_received.connect(self.on_data_received)  # Подключаем обработчик данных
         self.connection_established = self.arduino_worker.connection_established
         self.arduino_worker.connection_established.connect(self.on_connection_established)
+        if self.connection_established:
+            self.get_motors_settings_from_db()
+            self.status()
 
     # Обработка входящих данных от Arduino
     @pyqtSlot(str)
@@ -90,7 +98,7 @@ class Scanning(QThread):
 
                 command = {"command": "set_base_settings", "speed": start_speed_base, "accel": accel_base,
                            "MaxSpeed": MaxSpeed_base}
-                time.sleep(0.1) #БЕЗ ЗАДЕРКИ ВЕСЬ ПАРСИНГ С АРДУИНО СЫПЕТСЯ
+                time.sleep(0.1) #БЕЗ ЗАДЕРКИ ВЕСЬ ПАРСИНГ С АРДУИНО СЫПЕТСЯ (перенес в воркер, для подстраховки оставил и здесь)
 
                 self.arduino_worker.send_command(command)
 
@@ -109,6 +117,8 @@ class Scanning(QThread):
         self.making_ding = data.get("making_ding", "unknown")
         self.preparing_for_new_blade = data.get("prepearing_for_new_blade", "unknown")
         self.base_returning = data.get("base_returning", "unknown")
+        self.data_updated = True
+        logger.error("Scanning proccess: Данные обновлены")
 
     def set_default_motor_settings(self):
         defaults = DeviceConfig()
@@ -130,6 +140,7 @@ class Scanning(QThread):
                 )
                 session.add(new_disk_scan)
                 session.commit()
+                logger.error(f"Создан DiskScan c id {new_disk_scan.id} относящийся к DiskType {new_disk_scan.disk_type_id}")
                 self.disk_scan_id = new_disk_scan.id
 
                 # Получаем blade_force из DiskType
@@ -147,15 +158,53 @@ class Scanning(QThread):
             try:
                 self.is_running = True
                 self.start()
+                logger.error("Успех запуска сканирования")
             except Exception as e:
                 logger.error("Ошибка старта сканирования: %s", e, exc_info=True)
         else:
             logger.error("Ошибка старта сканирования: устройство не подключено")
 
 
+    def find_blade(self):
+        command = {"command": "find_blade"}
+        self.arduino_worker.send_command(command)
+
+    def return_base(self):
+
+        command = {"command": "return_base"}
+        self.arduino_worker.send_command(command)
+
+    def ding(self):
+        command = {"command": "ding"}
+        self.arduino_worker.send_command(command)
+
+    def pull(self):
+        command = {"command": "pull_blade"}
+        self.arduino_worker.send_command(command)
+
+    def status(self):
+        command = {"command": "status"}
+        self.arduino_worker.send_command(command)
+        self.data_updated = False
+        logger.error("Scanning proccess: Запрос на обновление данных")
+
     def run(self):
         while self.is_running and self.connection_established:
-            if self.find_blade_in_progress:
+            # self.status()
+                    # if not self.find_blade_in_progress:
+            print(
+                self.base_returning,
+                self.preparing_for_new_blade,
+                self.making_ding,
+                self.pressure_reached,
+                self.pulling_blade,
+                self.head_position,
+                self.blade_found,
+                self.find_blade_in_progress,
+
+            )
+            time.sleep(1)
+
 
 
     def stop(self):
