@@ -93,48 +93,34 @@ def start_control(main_window):
     """
     Начало процесса контроля.
     """
-    logger.info("Начало процесса контроля")
-    selected_item = main_window.nm_disk_type.currentText()
+    if main_window.connection_established:
+        logger.info("Начало процесса контроля")
+        selected_item = main_window.nm_disk_type.currentText()
 
-    if selected_item:
-        try:
-            # Используем контекстный менеджер для автоматического закрытия сессии
-            with Session() as session:
-                # Получаем тип диска из базы данных по имени
-                disk_type = session.query(DiskType).filter_by(name=selected_item).first()
-                if disk_type:
-                    logger.info(f"Запуск сканирования диска с ID {disk_type.id}")
-                    set_controls_enabled(main_window, False)  # Блокируем элементы
-                    # Запуск контроля на Arduino
-                    logger.info("Отправка команды на старт контроля")
-                    # current_scan = Scanning(disk_type.id)
-                    # current_scan.start_scan()
-                    # после выполнения выполняется блок ниже:
+        if selected_item:
+            try:
+                # Используем контекстный менеджер для автоматического закрытия сессии
+                with Session() as session:
+                    # Получаем тип диска из базы данных по имени
+                    disk_type = session.query(DiskType).filter_by(name=selected_item).first()
+                    if disk_type:
+                        logger.info(f"Запуск сканирования диска с ID {disk_type.id}")
+                        set_controls_enabled(main_window, False)  # Блокируем элементы
+                        # Запуск контроля на Arduino
+                        logger.info("Отправка команды на старт контроля")
+                        # main_window.current_scan = Scanning(disk_type.id, main_window.arduino_worker)
+                        # main_window.current_scan.start_scan()
+                        # main_window.current_scan.scanning_finished.connect(lambda: stop_control(main_window))
+                    else:
+                        logger.error(f"Тип диска с именем '{selected_item}' не найден.")
 
-                    try:
-                        blades = session.query(Blade).filter_by(disk_scan_id=disk_type.id).all()
-                        logger.info(f"Загружено {len(blades)} лопаток для контроля")
+            except Exception as e:
+                logger.error(f"Ошибка при старте сканирования: {e}", exc_info=True)
 
-                        # Заполнение таблицы измерений
-                        main_window.nm_measurements.setRowCount(len(blades))
-                        main_window.nm_measurements.setColumnCount(2)
-                        main_window.nm_measurements.setHorizontalHeaderLabels(["№", "Результат"])
-
-                        for row, blade in enumerate(blades):
-                            main_window.nm_measurements.setItem(row, 0, QTableWidgetItem(str(blade.num)))
-                            result = "Годен" if blade.prediction else "Не годен"
-                            main_window.nm_measurements.setItem(row, 1, QTableWidgetItem(result))
-                            logger.debug(f"Лопатка {blade.num}: {result}")
-                    except Exception as e:
-                        logger.error(f"Ошибка при обновлении данных лопаток: {e}", exc_info=True)
-                else:
-                    logger.error(f"Тип диска с именем '{selected_item}' не найден.")
-
-        except Exception as e:
-            logger.error(f"Ошибка при старте сканирования: {e}", exc_info=True)
-
+        else:
+            logger.error("Не выбран тип диска для сканирования.")
     else:
-        logger.error("Не выбран тип диска для сканирования.")
+        logger.error("Не подключена плата.")
 
 
 def stop_control(main_window):
@@ -145,6 +131,38 @@ def stop_control(main_window):
     # arduino.stop_mode()  # Остановка контроля на Arduino
     set_controls_enabled(main_window, True)  # Разблокируем элементы
     logger.info("Контроль завершен и элементы интерфейса разблокированы")
+    update_blade_fields(main_window)
+
+
+def update_blade_fields(main_window):
+    main_window.nm_measurements.clear()
+    selected_item = main_window.nm_disk_type.currentText()
+
+    if selected_item:
+            # Используем контекстный менеджер для автоматического закрытия сессии
+            with Session() as session:
+                # Получаем тип диска из базы данных по имени
+                disk_type = session.query(DiskType).filter_by(name=selected_item).first()
+
+                try:
+                    blades = session.query(Blade).filter_by(disk_scan_id=disk_type.id).all()
+                    logger.info(f"Загружено {len(blades)} лопаток для контроля")
+
+                    # Заполнение таблицы измерений
+                    main_window.nm_measurements.setRowCount(len(blades))
+                    main_window.nm_measurements.setColumnCount(2)
+                    main_window.nm_measurements.setHorizontalHeaderLabels(["№", "Результат"])
+
+                    for row, blade in enumerate(blades):
+                        main_window.nm_measurements.setItem(row, 0, QTableWidgetItem(str(blade.num)))
+                        result = "Годен" if blade.prediction else "Не годен"
+                        main_window.nm_measurements.setItem(row, 1, QTableWidgetItem(result))
+                        logger.debug(f"Лопатка {blade.num}: {result}")
+                except Exception as e:
+                    logger.error(f"Ошибка при обновлении данных лопаток: {e}", exc_info=True)
+
+    else:
+        logger.error("Не выбран тип диска для сканирования.")
 
 
 def setup_new_measurement_tab(main_window):

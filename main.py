@@ -5,7 +5,7 @@ from os import pread
 
 # from PyQt5 import uic
 from PyQt5.QtWidgets import QApplication, QMainWindow
-from PyQt5.QtCore import QEvent
+from PyQt5.QtCore import QEvent, pyqtSlot, pyqtSignal
 
 from fixed_interface import Ui_SoundScan
 
@@ -60,19 +60,34 @@ class MainWindow(QMainWindow, Ui_SoundScan):
 
             setup_device_config_tab(self)
             logger.info("Вкладка 'Параметры устройства' настроена")
-
+            self.connection_established = False
+            self.arduino_worker = ArduinoController().create_worker()
+            self.arduino_worker.connection_established.connect(
+                self.on_connection_established)  # Подключаем обработчик состояния подключения
+            self.arduino_worker.start()  # Запуск потока
             self.setup_ui()
 
         except Exception as e:
             logger.error(f"Ошибка при инициализации главного окна: {e}", exc_info=True)
+
+
+    # Обработка статуса подключения
+    @pyqtSlot(bool)
+    def on_connection_established(self, connected):
+        if connected:
+            self.connection_established = True
+            logger.info("Подключено к Ардуино!.")
+            set_controls_enabled(self,True)
+        else:
+            logger.info("Ошибка подключения к Arduino.")
 
     def setup_ui(self):
         print('setup_ui')
         self.on_tab_changed_lambda = lambda index: self.on_tab_changed(index) #Сохраняем лямбду для того, чтобы можно было
         #отключить сигнал в new_measurmnet(чуток костыль)
         self.tabWidget.currentChanged.connect(self.on_tab_changed_lambda)
-
-        #для блокировки интерфейса при сканировании (чуток костыль из за того что кнопка stop была засунута в tabwidget)
+        self.nm_disk_type.currentIndexChanged.connect(lambda: update_blade_fields(self))
+        #для блокировки интерфейса при сканировании (чуток костыль из-за того что кнопка stop была засунута в tabwidget)
         self.tab_bar = self.tabWidget.tabBar()
         self.tab_bar.installEventFilter(self)
 

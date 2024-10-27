@@ -8,13 +8,12 @@ import time
 import threading
 
 # Класс для взаимодействия с Arduino в отдельном потоке
-class ArduinoWorker(QThread):
-    data_received = pyqtSignal(str)  # Сигнал для передачи данных в основной поток
-    connection_established = pyqtSignal(bool)  # Сигнал для состояния подключения
+class ArduinoWorker(QThread): #модифицировано на переподключение каждые 5 сек если плата была отключена от компа
+    data_received = pyqtSignal(str)
+    connection_established = pyqtSignal(bool)
 
     def __init__(self, port='COM3', baudrate=115200):
         super().__init__()
-        print(f"ArduinoWorker port {port}")
         self.port = port
         self.baudrate = baudrate
         self.is_running = True
@@ -22,39 +21,51 @@ class ArduinoWorker(QThread):
         self.command_event = threading.Event()
         self.expected_response = None
         self.response = None
+        self.connected = False
 
     def run(self):
-        # Подключение к Arduino
-        try:
-
-            if os.name == 'nt':  # Windows
-                port_name = f"{self.port}"  # Например, 'COM3'
-            else:  # Unix-подобные системы
-                port_name = f"/dev/{self.port}"
-
-            self.arduino = serial.Serial(port_name, self.baudrate, timeout=10)
-            time.sleep(2)  # Задержка для установки соединения
-            self.connection_established.emit(True)  # Сигнализируем, что подключение успешно
-            print("Подключились")
-        except Exception as e:
-            print(f"Ошибка подключения: {e}")
-            self.connection_established.emit(False)
-            return
-
-        # Основной цикл для чтения данных
         while self.is_running:
+            if self.arduino is None or not self.arduino.is_open:
+                # Попытка подключения
+                try:
+                    if os.name == 'nt':  # Windows
+                        port_name = f"{self.port}"  # Например, 'COM3'
+                    else:  # Unix-подобные системы
+                        port_name = f"/dev/{self.port}"
+
+                    self.arduino = serial.Serial(port_name, self.baudrate, timeout=10)
+                    time.sleep(2)  # Задержка для установления соединения
+                    self.connected = True
+                    self.connection_established.emit(True)
+                    print("Подключено к Arduino")
+                except Exception as e:
+                    if self.connected:
+                        # Если ранее было подключение, сообщаем о разрыве
+                        self.connection_established.emit(False)
+                    self.connected = False
+                    print(f"Ошибка подключения: {e}")
+                    self.arduino = None
+                    # Ждём 5 секунд перед следующей попыткой
+                    time.sleep(5)
+                    continue  # Попытка переподключения
+
+            # Если подключение установлено, читаем данные
             try:
                 data = self.arduino.readline().decode().strip()
                 if data:
-                    # self.data_received.emit(data)
-                    # Проверяем, ожидаем ли мы этот ответ
                     if data == self.expected_response:
                         self.response = data
                         self.command_event.set()
                     else:
                         self.data_received.emit(data)
             except Exception as e:
+                # Обработка ошибок чтения (возможно, потеряно подключение)
                 print(f"Ошибка чтения: {e}")
+                self.connection_established.emit(False)
+                self.connected = False
+                if self.arduino:
+                    self.arduino.close()
+                    self.arduino = None
 
     # def send_command(self, command):
     #     try:

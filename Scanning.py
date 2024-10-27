@@ -7,8 +7,7 @@ import sys
 from codeop import compile_command
 from email.policy import default
 import time
-from PyQt5.QtCore import pyqtSlot
-from PyQt5.QtWidgets import QMainWindow, QLabel, QPushButton, QVBoxLayout, QWidget, QApplication
+from PyQt5.QtCore import pyqtSlot, pyqtSignal
 
 from src.arduino.arduino_controller import ArduinoController
 from src.arduino.arduino_worker import ArduinoWorker
@@ -27,7 +26,10 @@ logging.basicConfig(
 )
 
 class Scanning(QThread):
-    def __init__(self, disk_type_id):
+    scanning_finished= pyqtSignal()
+    blade_found = pyqtSignal(object)
+
+    def __init__(self, disk_type_id,arduino_worker):
         super().__init__()
 
         self.base_returning = None
@@ -45,25 +47,10 @@ class Scanning(QThread):
         self.is_running = False
 
         # Создание объекта для работы с Arduino
-        self.arduino_worker = ArduinoController().create_worker()
+        self.arduino_worker = arduino_worker
         self.arduino_worker.data_received.connect(self.on_data_received)  # Подключаем обработчик данных
-        self.arduino_worker.connection_established.connect(
-            self.on_connection_established)  # Подключаем обработчик состояния подключения
-        self.connection_established = False
-
-    @pyqtSlot()
-    def connect_arduino(self):
-        self.arduino_worker.start()  # Запуск потока
-
-    # Обработка статуса подключения
-    @pyqtSlot(bool)
-    def on_connection_established(self, connected):
-        if connected:
-            self.connection_established = True
-            logger.info("Подключено к Ардуино!.")
-            self.set_control_buttons_state(True)
-        else:
-            logger.info("Ошибка подключения к Arduino.")
+        self.connection_established = self.arduino_worker.connection_established
+        self.arduino_worker.connection_established.connect(self.on_connection_established)
 
     # Обработка входящих данных от Arduino
     @pyqtSlot(str)
@@ -76,37 +63,42 @@ class Scanning(QThread):
             self.update_status(json_data)
         except json.JSONDecodeError:
             print(f"Некорректные данные: {data}")
-            if data == "Arduino готово к приему данных":
-                self.get_motors_settings_from_db()
+
+    @pyqtSlot(bool)
+    def on_connection_established(self, connected):
+        if connected:
+            self.connection_established = True
+        else:
+            self.stop() #в случае отключения платы остановить
+            logger.info("Ошибка подключения к Arduino. Аварийная остановка")
 
     def get_motors_settings_from_db(self):
         print("get_motors_settings_from_db")
-        if self.connection_established:
-            session = DatabaseSession()
-            try:
-                config = session.query(DeviceConfig).first()
-                if config:
-                    start_speed_head = config.head_motor_speed
-                    accel_head = config.head_motor_accel
-                    MaxSpeed_head = config.head_motor_MaxSpeed
+        session = DatabaseSession()
+        try:
+            config = session.query(DeviceConfig).first()
+            if config:
+                start_speed_head = config.head_motor_speed
+                accel_head = config.head_motor_accel
+                MaxSpeed_head = config.head_motor_MaxSpeed
 
-                    start_speed_base = config.base_motor_speed
-                    accel_base = config.base_motor_accel
-                    MaxSpeed_base = config.base_motor_MaxSpeed
-                    command = {"command": "set_head_settings", "speed": start_speed_head, "accel": accel_head, "MaxSpeed": MaxSpeed_head}
-                    self.arduino_worker.send_command(command)
+                start_speed_base = config.base_motor_speed
+                accel_base = config.base_motor_accel
+                MaxSpeed_base = config.base_motor_MaxSpeed
+                command = {"command": "set_head_settings", "speed": start_speed_head, "accel": accel_head, "MaxSpeed": MaxSpeed_head}
+                self.arduino_worker.send_command(command)
 
-                    command = {"command": "set_base_settings", "speed": start_speed_base, "accel": accel_base,
-                               "MaxSpeed": MaxSpeed_base}
-                    time.sleep(0.1) #БЕЗ ЗАДЕРКИ ВЕСЬ ПАРСИНГ С АРДУИНО СЫПЕТСЯ
+                command = {"command": "set_base_settings", "speed": start_speed_base, "accel": accel_base,
+                           "MaxSpeed": MaxSpeed_base}
+                time.sleep(0.1) #БЕЗ ЗАДЕРКИ ВЕСЬ ПАРСИНГ С АРДУИНО СЫПЕТСЯ
 
-                    self.arduino_worker.send_command(command)
+                self.arduino_worker.send_command(command)
 
 
-                else:
-                   self.set_default_motor_settings()
-            finally:
-                session.close()
+            else:
+               self.set_default_motor_settings()
+        finally:
+            session.close()
 
     def update_status(self, data):
         self.find_blade_in_progress = data.get("find_blade_in_progress", "unknown")
@@ -128,43 +120,45 @@ class Scanning(QThread):
         self.arduino_worker.send_command(command)
 
     def start_scan(self):
-        session = DatabaseSession()
-        try:
-            new_disk_scan = DiskScan(
-                name=f"{datetime.now()} New disc_scan",
-                disk_type_id=self.disk_type_id,
-                is_training=False
-            )
-            session.add(new_disk_scan)
-            session.commit()
-            self.disk_scan_id = new_disk_scan.id
+        if self.connection_established:
+            session = DatabaseSession()
+            try:
+                new_disk_scan = DiskScan(
+                    name=f"{datetime.now()} New disc_scan",
+                    disk_type_id=self.disk_type_id,
+                    is_training=False
+                )
+                session.add(new_disk_scan)
+                session.commit()
+                self.disk_scan_id = new_disk_scan.id
 
-            # Получаем blade_force из DiskType
-            disk_type = session.query(DiskType).get(self.disk_type_id)
-            if disk_type:
-                self.blade_force = disk_type.blade_force
-            else:
-                logger.error(f"DiskType с id {self.disk_type_id} не найден.")
-        except Exception as e:
-            logger.error("Ошибка создания экземпляра сканирования или получения blade_force: %s", e, exc_info=True)
-        finally:
-            session.close()
+                # Получаем blade_force из DiskType
+                disk_type = session.query(DiskType).get(self.disk_type_id)
+                if disk_type:
+                    self.blade_force = disk_type.blade_force
+                else:
+                    logger.error(f"DiskType с id {self.disk_type_id} не найден.")
+            except Exception as e:
+                logger.error("Ошибка создания экземпляра сканирования или получения blade_force: %s", e, exc_info=True)
+            finally:
+                session.close()
 
-        # Запуск сканирования
-        try:
-            self.is_running = True
-            self.start()
-        except Exception as e:
-            logger.error("Ошибка старта сканирования: %s", e, exc_info=True)
+            # Запуск сканирования
+            try:
+                self.is_running = True
+                self.start()
+            except Exception as e:
+                logger.error("Ошибка старта сканирования: %s", e, exc_info=True)
+        else:
+            logger.error("Ошибка старта сканирования: устройство не подключено")
 
 
     def run(self):
-        while self.is_running:
+        while self.is_running and self.connection_established:
             if self.find_blade_in_progress:
 
 
     def stop(self):
         self.is_running = False
-        self.arduino_worker.stop()
-        self.stop()
+        self.quit()
         self.wait()
