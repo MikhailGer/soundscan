@@ -109,11 +109,6 @@ def start_control(main_window):
                         set_controls_enabled(main_window, False)  # Блокируем элементы
                         # Запуск контроля на Arduino
                         logger.info("Отправка команды на старт контроля")
-                        #todo переделать логику старта сканирования
-
-                        # main_window.current_scan = Scanning(disk_type.id, main_window.arduino_worker)
-                        # main_window.current_scan.start_scan()
-                        # main_window.current_scan.scanning_finished.connect(lambda: stop_control(main_window))
                         main_window.current_scan = Scanning(disk_type.id, main_window.arduino_worker)
                         main_window.scanning_thread = QThread()
                         main_window.current_scan.moveToThread(main_window.scanning_thread)
