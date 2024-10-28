@@ -8,6 +8,10 @@ from email.policy import default
 from datetime import datetime
 import time
 
+import io
+import wave
+import pyaudio
+
 from PyQt5.QtCore import QObject
 from PyQt5.QtCore import pyqtSlot, pyqtSignal
 
@@ -34,6 +38,7 @@ class Scanning(QObject):
 
     def __init__(self, disk_type_id,arduino_worker):
         super().__init__()
+        self.recording_duration = 5
         self.num = 0
         self.blade_created = False
         self.data_updated = False
@@ -49,7 +54,6 @@ class Scanning(QObject):
         self.blade_force = None
         self.disk_scan_id = None
         self.disk_type_id = disk_type_id
-        #todo переделать логику старта, объявление воркера и отправка команд на статус и все такое только после метода старт
         self.is_running = False
 
         # Создание объекта для работы с Arduino
@@ -190,14 +194,17 @@ class Scanning(QObject):
         self.arduino_worker.send_command(command)
 
     def ding(self):
+        logger.info("Scanning: Выполняется команда ding")
         command = {"command": "ding"}
         self.arduino_worker.send_command(command)
 
     def pull(self):
+        logger.info("Scanning:выполняется команда pull")
         command = {"command": "pull_blade"}
         self.arduino_worker.send_command(command)
 
     def status(self):
+        logger.info("Scanning:выполняется команда status")
         command = {"command": "status"}
         self.arduino_worker.send_command(command)
         self.data_updated = False
@@ -214,40 +221,72 @@ class Scanning(QObject):
                 if not self.blade_created:
                     self.blade_created = True
                     self.num += 1
-                    #тут логика создания экземпляра blade в бд (позже)
                 if not self.pressure_reached:
                     if not self.pulling_blade:
                         self.pull()
                 else:
                     self.ding()
+                    wav_data = self.start_recording()
+                    new_blade = Blade(
+                        disk_scan_id=self.disk_scan_id,
+                        num=self.num,
+                        scan=wav_data,
+                        prediction=False  # Для имитации работы ML
+                    )
+                    self.session.add(new_blade)
+                    self.session.commit()
                     #тут логика старта записи микрофона, добавления записи в бд и добавление звука в потокобезопасную очередь для отправки в МЛ на анализ
+                    #тут логика создания экземпляра blade c полными данными в бд (позже) (сначала ML даст ответ а затем создастся экземпляр)
+                    #для имитации работы ML пусть просто будет строчка prediction = false
+
                     self.blade_created = False
+
+    def start_recording(self):
+        # Инициализируем запись аудио
+        import pyaudio
+
+        CHUNK = 1024
+        FORMAT = pyaudio.paInt16
+        CHANNELS = 1
+        RATE = 44100
+        RECORD_SECONDS = self.recording_duration  # Длительность записи соответствует длительности ding
+
+        p = pyaudio.PyAudio()
+
+        stream = p.open(format=FORMAT,
+                        channels=CHANNELS,
+                        rate=RATE,
+                        input=True,
+                        frames_per_buffer=CHUNK)
+
+        logger.info("* Начало записи")
+
+        frames = []
+
+        for _ in range(0, int(RATE / CHUNK * RECORD_SECONDS)):
+            data = stream.read(CHUNK)
+            frames.append(data)
+
+        logger.info("* Конец записи")
+
+        stream.stop_stream()
+        stream.close()
+        p.terminate()
+
+        audio_buffer = io.BytesIO()
+        wf = wave.open(audio_buffer, 'wb')
+        wf.setnchannels(CHANNELS)
+        wf.setsampwidth(p.get_sample_size(FORMAT))
+        wf.setframerate(RATE)
+        wf.writeframes(b''.join(frames))
+        wf.close()
+        # Преобразуем аудиоданные
+        wav_data = audio_buffer.getvalue()
+        return wav_data
 
 
     def stop_scan(self):
         self.return_base()
         self.scanning_finished.emit()
 
-    # def run(self):
-    #     while self.is_running and self.connection_established:
-    #         # self.status()
-    #                 # if not self.find_blade_in_progress:
-    #         print(
-    #             self.base_returning,
-    #             self.preparing_for_new_blade,
-    #             self.making_ding,
-    #             self.pressure_reached,
-    #             self.pulling_blade,
-    #             self.head_position,
-    #             self.blade_found,
-    #             self.find_blade_in_progress,
-    #
-    #         )
-    #         time.sleep(1)
 
-
-
-    # def stop(self):
-    #     self.is_running = False
-    #     self.quit()
-    #     self.wait()
