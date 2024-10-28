@@ -23,7 +23,7 @@ logging.basicConfig(
     ]
 )
 
-
+#оставил для отладки процессов в железе
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
