@@ -8,6 +8,8 @@ from email.policy import default
 from datetime import datetime
 import time
 
+from collections import deque
+
 import io
 import wave
 import pyaudio
@@ -18,7 +20,7 @@ from PyQt5.QtCore import pyqtSlot, pyqtSignal
 from src.arduino.arduino_controller import ArduinoController
 from src.arduino.arduino_worker import ArduinoWorker
 
-from src.db import Session as DatabaseSession
+from src.db import Session as DatabaseSession, Session
 from src.models import DeviceConfig
 from src.models import DiskScan, Blade, DiskType
 
@@ -34,10 +36,15 @@ logging.basicConfig(
 
 class Scanning(QObject):
     scanning_finished = pyqtSignal()
-    blade_found = pyqtSignal()
+    blade_downloaded = pyqtSignal()
 
     def __init__(self, disk_type_id,arduino_worker):
         super().__init__()
+
+        self.stopped = None
+        self.event_queue = deque()
+        self.processing = False
+
         self.recording_duration = 5
         self.num = 0
         self.blade_created = False
@@ -58,7 +65,7 @@ class Scanning(QObject):
 
         # Создание объекта для работы с Arduino
         self.arduino_worker = arduino_worker
-        self.arduino_worker.data_received.connect(self.on_data_received)  # Подключаем обработчик данных
+        # self.arduino_worker.data_received.connect(self.on_data_received)  # Подключаем обработчик данных
         self.connection_established = self.arduino_worker.connection_established
         self.arduino_worker.connection_established.connect(self.on_connection_established)
         # if self.connection_established:
@@ -74,8 +81,12 @@ class Scanning(QObject):
             json_data = json.loads(data)
             print(f"Получено от Arduino: {json_data}")
             # Обработка данных и обновление состояния интерфейса
-            self.update_status(json_data)
-            self.process_state()
+            # self.update_status(json_data)
+            # self.process_state()
+            self.event_queue.append(json_data)
+            if not self.processing:
+                self.process_next_event()
+
         except json.JSONDecodeError:
             print(f"Некорректные данные: {data}")
 
@@ -84,8 +95,20 @@ class Scanning(QObject):
         if connected:
             self.connection_established = True
         else:
-            self.stop() #в случае отключения платы остановить
+            self.stop_scan() #в случае отключения платы остановить
             logger.error("Ошибка подключения к Arduino. Аварийная остановка")
+
+    def process_next_event(self):
+        if self.stopped:
+            self.processing = False
+            return
+        if self.event_queue:
+            self.processing = True
+            json_data = self.event_queue.popleft()
+            self.update_status(json_data)
+            self.process_state()
+        else:
+            self.processing = False
 
     def get_motors_settings_from_db(self):
         print("get_motors_settings_from_db")
@@ -137,7 +160,7 @@ class Scanning(QObject):
         command = {"command": "set_base_settings", "speed": defaults.base_motor_speed, "accel": defaults.base_motor_accel,
                    "MaxSpeed": defaults.base_motor_MaxSpeed}
         self.arduino_worker.send_command(command)
-
+    @pyqtSlot()
     def start_scan(self):
         if self.connection_established:
             session = DatabaseSession()
@@ -162,7 +185,7 @@ class Scanning(QObject):
                 logger.error("Ошибка создания экземпляра сканирования или получения blade_force: %s", e, exc_info=True)
             finally:
                 session.close()
-
+            self.arduino_worker.data_received.connect(self.on_data_received)  # Подключаем обработчик данных
             self.get_motors_settings_from_db()
             self.start_base_motor()
             self.status()
@@ -211,35 +234,51 @@ class Scanning(QObject):
         logger.info("Scanning proccess: Запрос на обновление данных")
 
     def process_state(self):
-        if not self.scan_in_progress:
-            if self.head_position == "up":
-                self.move_head_down(self.blade_force)
-            else:
-                self.start_command()
-        else:
-            if self.blade_found:
-                if not self.blade_created:
-                    self.blade_created = True
-                    self.num += 1
-                if not self.pressure_reached:
-                    if not self.pulling_blade:
-                        self.pull()
+        if self.stopped:
+            self.processing = False
+            return
+        try:
+            if not self.scan_in_progress:
+                if self.head_position == "up":
+                    self.move_head_down(self.blade_force)
                 else:
-                    self.ding()
-                    wav_data = self.start_recording()
-                    new_blade = Blade(
-                        disk_scan_id=self.disk_scan_id,
-                        num=self.num,
-                        scan=wav_data,
-                        prediction=False  # Для имитации работы ML
-                    )
-                    self.session.add(new_blade)
-                    self.session.commit()
-                    #тут логика старта записи микрофона, добавления записи в бд и добавление звука в потокобезопасную очередь для отправки в МЛ на анализ
-                    #тут логика создания экземпляра blade c полными данными в бд (позже) (сначала ML даст ответ а затем создастся экземпляр)
-                    #для имитации работы ML пусть просто будет строчка prediction = false
+                    self.start_command()
+            else:
+                if not self.preparing_for_new_blade:
+                    if self.blade_found:
+                        if not self.blade_created:
+                            self.blade_created = True
+                            self.num += 1
+                        if not self.pressure_reached:
+                            if not self.pulling_blade:
+                                self.pull()
+                        else:
+                            if not self.making_ding:
+                                self.ding()
+                                wav_data = self.start_recording()
+                                new_blade = Blade(
+                                    disk_scan_id=self.disk_scan_id,
+                                    num=self.num,
+                                    scan=wav_data,
+                                    prediction=False  # Для имитации работы ML
+                                )
+                                with Session() as session:
+                                    session.add(new_blade)
+                                    session.commit()
+                                #тут логика старта записи микрофона, добавления записи в бд и добавление звука в потокобезопасную очередь для отправки в МЛ на анализ
+                                #тут логика создания экземпляра blade c полными данными в бд (позже) (сначала ML даст ответ а затем создастся экземпляр)
+                                #для имитации работы ML пусть просто будет строчка prediction = false
 
-                    self.blade_created = False
+                                self.blade_created = False
+                                self.blade_downloaded.emit()
+            if self.stopped:
+                self.processing = False
+                return
+            self.process_next_event()
+        except Exception as e:
+            logger.error("Ошибка обработки события: %s", e, exc_info=True)
+            # Переходим к следующему событию даже в случае ошибки
+            self.process_next_event()
 
     def start_recording(self):
         # Инициализируем запись аудио
@@ -284,9 +323,11 @@ class Scanning(QObject):
         wav_data = audio_buffer.getvalue()
         return wav_data
 
-
+    @pyqtSlot()
     def stop_scan(self):
         self.return_base()
+        self.stopped = True
+        self.event_queue.clear()
         self.scanning_finished.emit()
 
 

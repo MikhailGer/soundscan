@@ -3,6 +3,7 @@ from operator import index
 from PyQt5.QtWidgets import QHeaderView
 from PyQt5.QtSerialPort import QSerialPort
 from PyQt5.QtWidgets import QTableWidgetItem, QTabBar, QTabWidget
+from PyQt5.QtCore import QMetaObject, Qt, QThread
 from src.db import Session
 from src.models import DiskType, Blade, DiskScan
 
@@ -108,9 +109,20 @@ def start_control(main_window):
                         set_controls_enabled(main_window, False)  # Блокируем элементы
                         # Запуск контроля на Arduino
                         logger.info("Отправка команды на старт контроля")
+                        #todo переделать логику старта сканирования
+
+                        # main_window.current_scan = Scanning(disk_type.id, main_window.arduino_worker)
+                        # main_window.current_scan.start_scan()
+                        # main_window.current_scan.scanning_finished.connect(lambda: stop_control(main_window))
                         main_window.current_scan = Scanning(disk_type.id, main_window.arduino_worker)
-                        main_window.current_scan.start_scan()
-                        main_window.current_scan.scanning_finished.connect(lambda: stop_control(main_window))
+                        main_window.scanning_thread = QThread()
+                        main_window.current_scan.moveToThread(main_window.scanning_thread)
+                        main_window.scanning_thread.started.connect(main_window.current_scan.start_scan)
+                        main_window.current_scan.blade_downloaded.connect(lambda: update_blade_fields(main_window))
+                        main_window.current_scan.scanning_finished.connect(main_window.scanning_thread.quit)
+                        main_window.current_scan.scanning_finished.connect(main_window.scanning_thread.deleteLater)
+                        main_window.current_scan.scanning_finished.connect(main_window.scanning_thread.deleteLater)
+                        main_window.scanning_thread.start()
                     else:
                         logger.error(f"Тип диска с именем '{selected_item}' не найден.")
 
@@ -122,14 +134,13 @@ def start_control(main_window):
     else:
         logger.error("Не подключена плата.")
 
-
 def stop_control(main_window):
     """
     Остановка процесса контроля.
     """
     logger.info("Остановка процесса контроля")
-    main_window.current_scan.stop()
-
+    # main_window.current_scan.stop()
+    QMetaObject.invokeMethod(main_window.current_scan, 'stop_scan', Qt.QueuedConnection)
     # arduino.stop_mode()  # Остановка контроля на Arduino
     set_controls_enabled(main_window, True)  # Разблокируем элементы
     logger.info("Контроль завершен и элементы интерфейса разблокированы")
