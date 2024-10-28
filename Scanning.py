@@ -1,6 +1,4 @@
 from venv import logger
-
-from PyQt5.QtCore import QThread
 import json
 import logging
 import sys
@@ -10,6 +8,7 @@ from email.policy import default
 from datetime import datetime
 import time
 
+from PyQt5.QtCore import QObject
 from PyQt5.QtCore import pyqtSlot, pyqtSignal
 
 from src.arduino.arduino_controller import ArduinoController
@@ -29,13 +28,14 @@ logging.basicConfig(
     ]
 )
 
-class Scanning(QThread):
-    scanning_finished= pyqtSignal()
-    blade_found = pyqtSignal(object)
+class Scanning(QObject):
+    scanning_finished = pyqtSignal()
+    blade_found = pyqtSignal()
 
     def __init__(self, disk_type_id,arduino_worker):
         super().__init__()
-
+        self.num = 0
+        self.blade_created = False
         self.data_updated = False
         self.base_returning = None
         self.preparing_for_new_blade = None
@@ -44,11 +44,12 @@ class Scanning(QThread):
         self.pulling_blade = None
         self.head_position = None
         self.blade_found = None
-        self.find_blade_in_progress = None
+        self.scan_in_progress = None
 
         self.blade_force = None
         self.disk_scan_id = None
         self.disk_type_id = disk_type_id
+        #todo переделать логику старта, объявление воркера и отправка команд на статус и все такое только после метода старт
         self.is_running = False
 
         # Создание объекта для работы с Arduino
@@ -56,9 +57,10 @@ class Scanning(QThread):
         self.arduino_worker.data_received.connect(self.on_data_received)  # Подключаем обработчик данных
         self.connection_established = self.arduino_worker.connection_established
         self.arduino_worker.connection_established.connect(self.on_connection_established)
-        if self.connection_established:
-            self.get_motors_settings_from_db()
-            self.status()
+        # if self.connection_established:
+        #     self.get_motors_settings_from_db()
+        #     self.start_base_motor()
+        #     self.status()
 
     # Обработка входящих данных от Arduino
     @pyqtSlot(str)
@@ -69,6 +71,7 @@ class Scanning(QThread):
             print(f"Получено от Arduino: {json_data}")
             # Обработка данных и обновление состояния интерфейса
             self.update_status(json_data)
+            self.process_state()
         except json.JSONDecodeError:
             print(f"Некорректные данные: {data}")
 
@@ -78,7 +81,7 @@ class Scanning(QThread):
             self.connection_established = True
         else:
             self.stop() #в случае отключения платы остановить
-            logger.info("Ошибка подключения к Arduino. Аварийная остановка")
+            logger.error("Ошибка подключения к Arduino. Аварийная остановка")
 
     def get_motors_settings_from_db(self):
         print("get_motors_settings_from_db")
@@ -109,7 +112,7 @@ class Scanning(QThread):
             session.close()
 
     def update_status(self, data):
-        self.find_blade_in_progress = data.get("find_blade_in_progress", "unknown")
+        self.scan_in_progress = data.get("scan_in_progress", "unknown")
         self.blade_found = data.get("blade_found", "unknown")
         self.head_position = data.get("head_position", "unknown")
         self.pulling_blade = data.get("pulling_blade", "unknown")
@@ -118,7 +121,9 @@ class Scanning(QThread):
         self.preparing_for_new_blade = data.get("prepearing_for_new_blade", "unknown")
         self.base_returning = data.get("base_returning", "unknown")
         self.data_updated = True
-        logger.error("Scanning proccess: Данные обновлены")
+        logger.info("Scanning process: Данные обновлены")
+        if self.base_returning:
+            self.scanning_finished.emit()
 
     def set_default_motor_settings(self):
         defaults = DeviceConfig()
@@ -154,19 +159,29 @@ class Scanning(QThread):
             finally:
                 session.close()
 
-            # Запуск сканирования
-            try:
-                self.is_running = True
-                self.start()
-                logger.error("Успех запуска сканирования")
-            except Exception as e:
-                logger.error("Ошибка старта сканирования: %s", e, exc_info=True)
+            self.get_motors_settings_from_db()
+            self.start_base_motor()
+            self.status()
         else:
             logger.error("Ошибка старта сканирования: устройство не подключено")
 
+    def start_base_motor(self):
+        command = {"command": "set_motor_on", "state": True}
+        self.arduino_worker.send_command(command)
+    def stop_base_motor(self):
+        command = {"command": "set_motor_on", "state": False}
+        self.arduino_worker.send_command(command)
 
-    def find_blade(self):
-        command = {"command": "find_blade"}
+    def move_head_up(self):
+        command = {"command": "move_head_up"}
+        self.arduino_worker.send_command(command)
+
+    def move_head_down(self, blade_force):
+        command = {"command": "move_head_down", "pressure": blade_force}  # Например, установить порог давления
+        self.arduino_worker.send_command(command)
+
+    def start_command(self):
+        command = {"command": "start_scan"}
         self.arduino_worker.send_command(command)
 
     def return_base(self):
@@ -186,28 +201,53 @@ class Scanning(QThread):
         command = {"command": "status"}
         self.arduino_worker.send_command(command)
         self.data_updated = False
-        logger.error("Scanning proccess: Запрос на обновление данных")
+        logger.info("Scanning proccess: Запрос на обновление данных")
 
-    def run(self):
-        while self.is_running and self.connection_established:
-            # self.status()
-                    # if not self.find_blade_in_progress:
-            print(
-                self.base_returning,
-                self.preparing_for_new_blade,
-                self.making_ding,
-                self.pressure_reached,
-                self.pulling_blade,
-                self.head_position,
-                self.blade_found,
-                self.find_blade_in_progress,
+    def process_state(self):
+        if not self.scan_in_progress:
+            if self.head_position == "up":
+                self.move_head_down(self.blade_force)
+            else:
+                self.start_command()
+        else:
+            if self.blade_found:
+                if not self.blade_created:
+                    self.blade_created = True
+                    self.num += 1
+                    #тут логика создания экземпляра blade в бд (позже)
+                if not self.pressure_reached:
+                    if not self.pulling_blade:
+                        self.pull()
+                else:
+                    self.ding()
+                    #тут логика старта записи микрофона, добавления записи в бд и добавление звука в потокобезопасную очередь для отправки в МЛ на анализ
+                    self.blade_created = False
 
-            )
-            time.sleep(1)
+
+    def stop_scan(self):
+        self.return_base()
+        self.scanning_finished.emit()
+
+    # def run(self):
+    #     while self.is_running and self.connection_established:
+    #         # self.status()
+    #                 # if not self.find_blade_in_progress:
+    #         print(
+    #             self.base_returning,
+    #             self.preparing_for_new_blade,
+    #             self.making_ding,
+    #             self.pressure_reached,
+    #             self.pulling_blade,
+    #             self.head_position,
+    #             self.blade_found,
+    #             self.find_blade_in_progress,
+    #
+    #         )
+    #         time.sleep(1)
 
 
 
-    def stop(self):
-        self.is_running = False
-        self.quit()
-        self.wait()
+    # def stop(self):
+    #     self.is_running = False
+    #     self.quit()
+    #     self.wait()

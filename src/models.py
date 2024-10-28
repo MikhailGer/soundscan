@@ -1,5 +1,5 @@
 import datetime
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, Float
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, Float, LargeBinary
 from sqlalchemy.orm import relationship
 
 from src.config import settings
@@ -44,7 +44,8 @@ class Blade(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     disk_scan_id = Column(Integer, ForeignKey(f'{settings.DB_SCHEMA}.disk_scan.id'), nullable=False)
     num = Column(Integer, nullable=False)
-    scan = Column(String, nullable=False)
+    # scan = Column(String, nullable=False)
+    scan = Column(LargeBinary, nullable=False)
     prediction = Column(Boolean, nullable=False)
     created_at = Column(DateTime, default=datetime.datetime.now(datetime.UTC))
 

@@ -114,7 +114,7 @@ class MainWindow(QMainWindow):
     # Обновление интерфейса на основе данных от Arduino
     def update_ui(self, data):
         # Пример обновления UI на основе полученных данных
-        find_blade_in_progress = data.get("find_blade_in_progress", "unknown")
+        find_blade_in_progress = data.get("scan_in_progress", "unknown")
         blade_found = data.get("blade_found", "unknown")
         head_position = data.get("head_position", "unknown")
         pulling_blade = data.get("pulling_blade", "unknown")
@@ -182,7 +182,7 @@ class MainWindow(QMainWindow):
         self.arduino_worker.send_command(command)
 
     def find_blade(self):
-        command = {"command": "find_blade"}
+        command = {"command": "start_scan"}
         self.arduino_worker.send_command(command)
 
     def return_base(self):
