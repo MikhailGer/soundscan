@@ -14,7 +14,7 @@ GStepper<STEPPER2WIRE> stepper_head(200, 8, 9, 10); // Мотор головки
 
 //переменные, связанные с постоянными параметрами установки
 static int prepearing_time = 5000; // время в мс, которое требуется микрофону для записи колебаний звука после "дзынь", после этого времени начнется поиск новой лопатки
-static int pressure_to_find_blade = 20; //постоянное значение, если показания тензодатчика больше этого значения, значит тезодатчик уперся в лопатку(лопатка найдена)
+static int pressure_to_find_blade = 50; //постоянное значение, если показания тензодатчика больше этого значения, значит тезодатчик уперся в лопатку(лопатка найдена)
 static int circle_in_steps = 14400; //полная окружность установки в шагах
 static int serach_interval = 7000; //интревал времени в мc. Если в течении этого времени новая лопатка не была найдена, сканирование завершается(возоврат к старту)
 int32_t base_init_pos = 0; //задает стартовую позицию, присвоение происходит в setupMotors()
@@ -46,7 +46,7 @@ bool base_returning = false;
 bool base_run_flag = false;
 
 //!!!!!!!!!!!!!!!!!
-int blade_width = 100;//расстояние в шагах двигателя которое требуется для того чтобы переступить через шину лопатку(для того чтобы после дзыня головка опускалась не на лопатку а готовилась к новой лопатке)
+int blade_width = 16;//расстояние в шагах двигателя которое требуется для того чтобы переступить через шину лопатку(для того чтобы после дзыня головка опускалась не на лопатку а готовилась к новой лопатке)
 
 int speed_base = 0;        // Текущая скорость базы(в целом не нужно, можно оперировать maxspeed и acceleration)
 int accel_base = 0;//ускорение базы
@@ -93,47 +93,55 @@ void setup() {
   setupMotors();
 
   pinMode(limitSwitchPin, INPUT_PULLUP);  // Инициализация пина концевика
-  head_position = !digitalRead(limitSwitchPin);  // Чтение начального состояния концевика
+  head_position = digitalRead(limitSwitchPin);  // Чтение начального состояния концевика
 
   Serial.println("Arduino готово к приему данных");
   stepper_head.reset(); 
 }
 
   void loop() {
+  
     handleIncomingData();  // Обработка входящих данных от компьютера      
     updateTenzoData();
+//    Serial.println(currentTenzo);
   
     if (scan_in_progress) {
       
       if (base_run_flag){ // флаг разрешения движения двигателя базы
         if (!stepper_base.tick()){
-            if (!head_lifting && head_position){ //логика "заряжания" медиатора на поднятие
-          head_lifting = true;
-          stepper_head.reset();
-          stepper_head.setSpeed(3000);     // задаем макс скорость для издавания звука
-          stepper_head.setAcceleration(2000); 
-          stepper_head.setMaxSpeed(8000);  // Максимальная скорость подъема
-          stepper_head.setTarget(3200, RELATIVE);
-        }
-          
-          
-         if (head_lifting){ //логика поднятия медиатора
-              head_falling = false;
-              if(!stepper_head.tick()){ //за счет stepper_head.tick() происходит движение до ранее заданного значения которое находится в парсере комманд
-              head_lifting = false;
-              head_position = false; // Обновляем положение головки(головка опускается - выходит на нерабочее положение, поэтому head_position = false)
-              pressure_reached = false;
-              pulling_blade = false;
-              making_ding = false;
-              wait_recording_start_time = 0;
-              prepearing_for_new_blade = false; // обнуление всех флагов
-              scan_in_progress = false;
-              base_run_flag = false;
-              blade_found = false;
-              return_base();
-            }
-          }
-    
+                if(stepper_head.getCurrent() == circle_in_steps){
+                  return_base();  
+                  }
+                
+                
+              //код ниже не нужен потому что головка поднимется в блоке if (base_returning) после выполнения base_returning();
+//            if (!head_lifting && head_position){ //логика "заряжания" медиатора на поднятие
+//          head_lifting = true;
+//          stepper_head.reset();
+//          stepper_head.setSpeed(4000);     // задаем макс скорость для издавания звука
+//          stepper_head.setAcceleration(3000); 
+//          stepper_head.setMaxSpeed(8000);  // Максимальная скорость подъема
+//          stepper_head.setTarget(32000, RELATIVE);
+//        }
+//          
+//          
+//         if (head_lifting){ //логика поднятия медиатора
+//              head_falling = false;
+//              if(!stepper_head.tick()){ //за счет stepper_head.tick() происходит движение до ранее заданного значения которое находится в парсере комманд
+//              head_lifting = false;
+//              head_position = false; // Обновляем положение головки(головка опускается - выходит на нерабочее положение, поэтому head_position = false)
+//              pressure_reached = false;
+//              pulling_blade = false;
+//              making_ding = false;
+//              wait_recording_start_time = 0;
+//              prepearing_for_new_blade = false; // обнуление всех флагов
+//              scan_in_progress = false;
+//              base_run_flag = false;
+//              blade_found = false;
+//              return_base();
+//            }
+//          }
+//    
             
           }
         }
@@ -164,7 +172,8 @@ void setup() {
         
         if (currentTenzo >= pressure_threshold){ //условие того, что лопатка натянута
         pressure_reached = true;
-  //      stepper_base.brake();
+//        stepper_base.brake();
+        stepper_base.stop();
         base_run_flag = false;
         pulling_blade = false;
         sendStatus();
@@ -178,16 +187,16 @@ void setup() {
         if (!head_lifting){ //логика "заряжания" медиатора на поднятие
           head_lifting = true;
           stepper_head.reset();
-          stepper_head.setSpeed(3000);     // задаем макс скорость для издавания звука
-          stepper_head.setAcceleration(2000); 
+          stepper_head.setSpeed(4000);     // задаем макс скорость для издавания звука
+          stepper_head.setAcceleration(3000); 
           stepper_head.setMaxSpeed(8000);  // Максимальная скорость подъема
-          stepper_head.setTarget(3200, RELATIVE);
+          stepper_head.setTarget(32000, RELATIVE);
         }
           
           
          if (head_lifting){ //логика поднятия медиатора
               head_falling = false;
-              if(!stepper_head.tick()){ //за счет stepper_head.tick() происходит движение до ранее заданного значения которое находится в парсере комманд
+              if(!digitalRead(limitSwitchPin)){ //за счет stepper_head.tick() происходит движение до ранее заданного значения которое находится в парсере комманд
               head_lifting = false;
               head_position = false; // Обновляем положение головки(головка опускается - выходит на нерабочее положение, поэтому head_position = false)
               pressure_reached = false;
@@ -196,7 +205,10 @@ void setup() {
               prepearing_for_new_blade = true; //если головка поднята - подготовить медиатор к поиску след. лопатки
               stepper_base.setTarget(blade_width, RELATIVE);
               sendStatus(); 
-            }
+              stepper_head.reset();
+            }else{
+              stepper_head.tick();
+              }
           }
       
       }
@@ -204,11 +216,14 @@ void setup() {
         if (millis() - wait_recording_start_time >= prepearing_time){ //после того, как условие выполнится 1 раз, оно будет верно всегда 
             if(!stepper_base.tick() && !head_falling){
               head_falling = true; //опускаем головку после движения базы на ширину лопатки 
-              stepper_head.reset();
-          stepper_head.setSpeed(3000);     // задаем макс скорость для издавания звука
-          stepper_head.setAcceleration(2000); 
-          stepper_head.setMaxSpeed(8000);  // Максимальная скорость подъема
-          stepper_head.setTarget(3200, RELATIVE);
+//              stepper_head.reset();
+//          stepper_head.setSpeed(4000);     // задаем макс скорость для издавания звука
+//          stepper_head.setAcceleration(3000); 
+//          stepper_head.setMaxSpeed(8000);  // Максимальная скорость подъема
+//          stepper_head.setTarget(-32000, RELATIVE);
+          stepper_head.reset();
+          stepper_head.disable();
+//                
               }
               
             else{
@@ -217,7 +232,7 @@ void setup() {
             if (head_falling){ //опускаем головку после движения базы на ширину лопатки 
     
             head_lifting = false;
-            if(!stepper_head.tick()){ //за счет stepper_head.tick() происходит движение до ранее заданного значения которое находится в парсере комманд
+            if(digitalRead(limitSwitchPin)){ //за счет stepper_head.tick() происходит движение до ранее заданного значения которое находится в парсере комманд
             head_falling = false;
             head_position = true; // Обновляем положение головки(головка опускается - выходит на нерабочее положение, поэтому head_position =  true)
             prepearing_for_new_blade = false;
@@ -225,8 +240,29 @@ void setup() {
             stepper_base.setTarget(circle_in_steps, ABSOLUTE); // продолжаем двигаться к конечной точке равной полному кругу
             base_run_flag = true;
             sendStatus();
+//            stepper_head.setTarget(-1200,  RELATIVE);
+//             while(stepper_head.tick()){
+//              }
+//             stepper_head.reset();
+//            stepper_head.disable();
+//            stepper_head.setTarget(-40, RELATIVE);
+//            while(stepper_head. tick()){
+//              }
   
               }
+              else{
+                stepper_head.reset();
+                stepper_head.disable();
+//                
+
+
+
+
+
+
+
+;
+                }
             }
           }
         }
@@ -252,28 +288,41 @@ void setup() {
   
  if (head_lifting && !scan_in_progress){ //в режиме поиска лопатки свое собственное поднятие головки
     head_falling = false;
-    if(!stepper_head.tick()){ //за счет stepper_head.tick() происходит движение до ранее заданного значения которое находится в парсере комманд
+    if(!digitalRead(limitSwitchPin)){ //за счет stepper_head.tick() происходит движение до ранее заданного значения которое находится в парсере комманд
       head_lifting = false;
       head_position = false; // Обновляем положение головки(головка опускается - выходит на нерабочее положение, поэтому head_position = false)
       sendStatus(); 
-    }
+    }else{
+      stepper_head.tick();
+      }
+    
   }
-  if (head_falling && !scan_in_progress){ //в режиме поиска лопатки свое собственное поднятие головки
+  if (head_falling && !scan_in_progress){ //в режиме поиска лопатки свое собственное опускание головки
     head_lifting = false;
-    if(!stepper_head.tick()){
+    if(digitalRead(limitSwitchPin)){
       head_falling = false;
       head_position = true; // Обновляем положение головки (головка опускается - выходит на рабочее положение, поэтому head_position = true)
        sendStatus();
-    }
+//       stepper_head.setTarget(-1200,  RELATIVE);
+//       while(stepper_head.tick()){
+//        }
+       stepper_head.reset();
+       stepper_head.disable();
+       
+    }else{
+//      stepper_head.tick();
+        stepper_head.reset();
+       stepper_head.disable();
+      }
   } 
    if (base_returning){ //сначала должна быть поднята головка
            if (!head_lifting && head_position){ //логика "заряжания" медиатора на поднятие
           head_lifting = true;
           stepper_head.reset();
-          stepper_head.setSpeed(3000);    
-          stepper_head.setAcceleration(2000); 
+          stepper_head.setSpeed(4000);    
+          stepper_head.setAcceleration(3000); 
           stepper_head.setMaxSpeed(8000);  // Максимальная скорость подъема
-          stepper_head.setTarget(3200, RELATIVE);
+          stepper_head.setTarget(32000, RELATIVE);
         }
           
           
@@ -282,6 +331,8 @@ void setup() {
               if(!stepper_head.tick()){ //за счет stepper_head.tick() происходит движение до ранее заданного значения которое находится в парсере комманд
               head_lifting = false;
               head_position = false; 
+              sendStatus();
+               stepper_head.disable();
             }
           }
         if (!head_position) { 
@@ -367,7 +418,7 @@ void executeCommand(const JsonDocument& doc) {
         stepper_head.setSpeed(1000);     // Скорость подъема головки
         stepper_head.setAcceleration(1000); 
         stepper_head.setMaxSpeed(8000);  // Максимальная скорость подъема
-        stepper_head.setTarget(-3200, RELATIVE);
+        stepper_head.setTarget(32000, RELATIVE);
         }
         
 //      moveHeadUp(speed_head,accel_head,MaxSpeed_head);  // Поднять головку
@@ -379,7 +430,7 @@ void executeCommand(const JsonDocument& doc) {
         stepper_head.setSpeed(1000);     // Скорость подъема головки
         stepper_head.setAcceleration(1000); 
         stepper_head.setMaxSpeed(8000);  // Максимальная скорость подъема
-        stepper_head.setTarget(3200, RELATIVE);
+        stepper_head.setTarget(-32000, RELATIVE);
         }
       
 //      moveHeadDown(speed_head,accel_head,MaxSpeed_head);  // Опустить головку
@@ -413,7 +464,7 @@ void updateTenzoData() {
   if (millis() - lastUpdateTime >= TenzoUpdateRate) {
     lastUpdateTime = millis();
     if (LoadCell.update()) {
-      currentTenzo = LoadCell.getData();  // Получение данных с тензодатчика
+      currentTenzo = (-LoadCell.getData());  // Получение данных с тензодатчика
     }
   }
 }
@@ -432,7 +483,7 @@ void moveHeadUp(int start_speed,int accel, int MaxSpeed) {
   stepper_head.setSpeed(1000);     // Скорость подъема головки
   stepper_head.setAcceleration(1000); 
   stepper_head.setMaxSpeed(8000);  // Максимальная скорость подъема
-  stepper_head.setTarget(-3200, RELATIVE);
+  stepper_head.setTarget(-32000, RELATIVE);
   head_position = false;
 
 //  stepper_head.setTarget(-80000, RELATIVE);  // Подняться вверх
@@ -451,7 +502,7 @@ void moveHeadDown(int start_speed,int accel, int MaxSpeed) {
   stepper_head.setAcceleration(1000); 
   stepper_head.setMaxSpeed(8000);  // Максимальная скорость опускания
   //временный код
-  stepper_head.setTarget(3200, RELATIVE); 
+  stepper_head.setTarget(32000, RELATIVE); 
   head_position = true;
   }
 //  stepper_head.setTarget(80000, RELATIVE);  // Опуститься вниз
@@ -465,9 +516,9 @@ void moveHeadDown(int start_speed,int accel, int MaxSpeed) {
 
 void start_scan(){
   if(blade_found == false && head_position  && !scan_in_progress){
-    stepper_base.setSpeed(1000);
-    stepper_base.setAcceleration(1000);
-    stepper_base.setMaxSpeed(1500);
+    stepper_base.setSpeed(speed_base);
+     stepper_base.setAcceleration(accel_base); 
+     stepper_base.setMaxSpeed(MaxSpeed_base);
 //    find_blade_start_time = millis();
     stepper_base.setTarget(circle_in_steps, ABSOLUTE);
     scan_in_progress = true;
@@ -523,6 +574,7 @@ void sendStatus() { //новый sendStatus теперь возвращает ф
     jsonDoc["making_ding"] = making_ding;
     jsonDoc["prepearing_for_new_blade"] = prepearing_for_new_blade;
     jsonDoc["base_returning"] = base_returning;
+    
 
   serializeJson(jsonDoc, Serial);  // Отправка JSON данных
   Serial.println();  // Завершающий символ строки

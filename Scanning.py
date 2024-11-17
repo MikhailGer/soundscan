@@ -240,6 +240,7 @@ class Scanning(QObject):
         try:
             if not self.scan_in_progress:
                 if self.head_position == "up":
+                    print(f"BLADE FORCE{self.blade_force}")
                     self.move_head_down(self.blade_force)
                 else:
                     self.start_command()
