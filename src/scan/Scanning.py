@@ -15,7 +15,7 @@ import wave
 import pyaudio
 
 from PyQt5.QtCore import QObject, pyqtSlot, pyqtSignal
-from PyQt5.QtSql import record
+# from PyQt5.QtSql import record
 
 from src.arduino.arduino_controller import ArduinoController
 from src.arduino.arduino_worker import ArduinoWorker
