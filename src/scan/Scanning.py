@@ -14,15 +14,14 @@ import io
 import wave
 import pyaudio
 
-from PyQt5.QtCore import QObject
-from PyQt5.QtCore import pyqtSlot, pyqtSignal
+from PyQt5.QtCore import QObject, pyqtSlot, pyqtSignal
+from PyQt5.QtSql import record
 
 from src.arduino.arduino_controller import ArduinoController
 from src.arduino.arduino_worker import ArduinoWorker
 
 from src.db import Session as DatabaseSession, Session
-from src.models import DeviceConfig
-from src.models import DiskScan, Blade, DiskType
+from src.models import DeviceConfig, DiskScan, Blade, DiskType
 
 
 logging.basicConfig(
@@ -123,6 +122,12 @@ class Scanning(QObject):
                 start_speed_base = config.base_motor_speed
                 accel_base = config.base_motor_accel
                 MaxSpeed_base = config.base_motor_MaxSpeed
+
+                circle_in_steps = config.circle_in_steps
+                searching_time = config.searching_time
+                recording_time = config.recording_time
+                force_to_find = config.force_to_find
+                #ниже происходит залив на плату конфигурационных данных, сделал отдельно для стабильности работы
                 command = {"command": "set_head_settings", "speed": start_speed_head, "accel": accel_head, "MaxSpeed": MaxSpeed_head}
                 self.arduino_worker.send_command(command)
 
@@ -132,6 +137,17 @@ class Scanning(QObject):
 
                 self.arduino_worker.send_command(command)
 
+                command = {"command": "set_searching_time", "searching_time": searching_time}
+                self.arduino_worker.send_command(command)
+
+                command = {"command": "set_circle", "circle_in_steps": circle_in_steps}
+                self.arduino_worker.send_command(command)
+
+                command = {"command": "set_recording_time", "recording_time": recording_time}
+                self.arduino_worker.send_command(command)
+
+                command = {"command": "set_force_to_find", "force_to_find": force_to_find}
+                self.arduino_worker.send_command(command)
 
             else:
                self.set_default_motor_settings()

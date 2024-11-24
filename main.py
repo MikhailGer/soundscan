@@ -1,19 +1,9 @@
 import os
 import sys
-import logging
-from os import pread
 
 # from PyQt5 import uic
-from PyQt5.QtWidgets import QApplication, QMainWindow
-from PyQt5.QtCore import QEvent, pyqtSlot, pyqtSignal
+from PyQt5.QtWidgets import QApplication
 
-from fixed_interface import Ui_SoundScan
-
-from src.arduino.arduino_controller import ArduinoController
-from src.windows.change_history import *
-from src.windows.devise_config import *
-from src.windows.disk_type import *
-from src.windows.model_training import *
 from src.windows.new_measurement import *
 from src.windows.main_window import MainWindow
 

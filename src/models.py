@@ -87,3 +87,9 @@ class DeviceConfig(Base):
     head_working_pos = Column(Float, default=300.0)
 
     tenzo_update_rate = Column(Integer, default=10)
+
+    searching_time = Column(Integer, default = 10000, nullable=True)
+    circle_in_steps = Column(Integer, default = 14400, nullable=True)
+    recording_time = Column(Integer, default = 3000, nullable=True)
+    force_to_find = Column(Integer, default = 50,nullable=True)
+

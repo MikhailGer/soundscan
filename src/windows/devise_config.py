@@ -69,6 +69,10 @@ def load_device_config(main_window):
             main_window.dc_head_motor_returning_speed.setText(str(config.head_motor_returning_speed))
             main_window.dc_head_motor_returning_accel.setText(str(config.head_motor_returning_accel))
             main_window.dc_tenzo_update_rate.setText(str(config.tenzo_update_rate))
+            main_window.dc_circle_length.setText(str(config.circle_in_steps))
+            main_window.dc_search_time.setText(str(config.searching_time))
+            main_window.dc_recording_time.setText(str(config.recording_time))
+            main_window.dc_pressure_to_find.setText(str(config.force_to_find))
         else:
             show_error_message("Конфигурация устройства не найдена в базе данных.")
     except Exception as e:
@@ -101,6 +105,11 @@ def save_device_config(main_window):
                 head_motor_returning_accel = float(main_window.dc_head_motor_returning_accel.text()) if main_window.dc_head_motor_returning_accel.text() else 1.0
                 tenzo_update_rate = int(main_window.dc_tenzo_update_rate.text()) if main_window.dc_tenzo_update_rate.text() else 10
 
+                circle_in_steps = int(main_window.dc_circle_length.text()) if main_window.dc_circle_length.text() else 14400
+                searching_time = int(main_window.dc_search_time.text()) if main_window.dc_search_time.text() else 10000
+                recording_time = int(main_window.dc_recording_time.text()) if main_window.dc_recording_time.text() else 3000
+                force_to_find = int(main_window.dc_pressure_to_find.text()) if main_window.dc_pressure_to_find.text() else 50
+
             except ValueError as e:
                 logger.warning(f"Некорректное значение: {e}")
                 show_error_message("Пожалуйста, введите корректные числовые значения.")
@@ -119,6 +128,10 @@ def save_device_config(main_window):
             config.head_motor_returning_speed = head_motor_returning_speed
             config.head_motor_returning_accel = head_motor_returning_accel
             config.tenzo_update_rate = tenzo_update_rate
+            config.circle_in_steps = circle_in_steps
+            config.searching_time = searching_time
+            config.recording_time = recording_time
+            config.force_to_find = force_to_find
 
             # Сохраняем изменения в базе данных
             session.commit()

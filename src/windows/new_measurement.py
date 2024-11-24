@@ -1,13 +1,11 @@
 import logging
-from operator import index
 from PyQt5.QtWidgets import QHeaderView
-from PyQt5.QtSerialPort import QSerialPort
 from PyQt5.QtWidgets import QTableWidgetItem, QTabBar, QTabWidget
 from PyQt5.QtCore import QMetaObject, Qt, QThread
 from src.db import Session
 from src.models import DiskType, Blade, DiskScan
 
-from Scanning import Scanning
+from src.scan.Scanning import Scanning
 
 #классы для блокировки интерфейса
 class NonSwitchableTabBar(QTabBar):
