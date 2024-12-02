@@ -142,6 +142,7 @@ class Scanning(QObject):
 
                 command = {"command": "set_circle", "circle_in_steps": circle_in_steps}
                 self.arduino_worker.send_command(command)
+                print(circle_in_steps)
 
                 command = {"command": "set_recording_time", "recording_time": recording_time}
                 self.arduino_worker.send_command(command)
@@ -273,21 +274,25 @@ class Scanning(QObject):
                             if not self.making_ding:
                                 self.ding()
                                 wav_data = self.start_recording()
-                                new_blade = Blade(
-                                    disk_scan_id=self.disk_scan_id,
-                                    num=self.num,
-                                    scan=wav_data,
-                                    prediction=False  # Для имитации работы ML
-                                )
-                                with Session() as session:
-                                    session.add(new_blade)
-                                    session.commit()
-                                #тут логика старта записи микрофона, добавления записи в бд и добавление звука в потокобезопасную очередь для отправки в МЛ на анализ
-                                #тут логика создания экземпляра blade c полными данными в бд (позже) (сначала ML даст ответ а затем создастся экземпляр)
-                                #для имитации работы ML пусть просто будет строчка prediction = false
+                                if wav_data:
+                                    new_blade = Blade(
+                                        disk_scan_id=self.disk_scan_id,
+                                        num=self.num,
+                                        scan=wav_data,
+                                        prediction=False  # Для имитации работы ML
+                                    )
+                                    with Session() as session:
+                                        session.add(new_blade)
+                                        session.commit()
+                                    #тут логика старта записи микрофона, добавления записи в бд и добавление звука в потокобезопасную очередь для отправки в МЛ на анализ
+                                    #тут логика создания экземпляра blade c полными данными в бд (позже) (сначала ML даст ответ а затем создастся экземпляр)
+                                    #для имитации работы ML пусть просто будет строчка prediction = false
 
-                                self.blade_created = False
-                                self.blade_downloaded.emit()
+                                    self.blade_created = False
+                                    self.blade_downloaded.emit()
+                                else:
+                                    logger.error("!!!Ошибка записи файла в БД")
+
             if self.stopped:
                 self.processing = False
                 return

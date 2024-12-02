@@ -120,6 +120,8 @@ void setup() {
       
       
       if (!blade_found && currentTenzo >= pressure_to_find_blade && !making_ding && !pulling_blade && !prepearing_for_new_blade) { //лопатка найдена
+        finding_timer = millis(); // Если находимся в каком то режиме или лопатка найдена, то сбрасываем таймер поиска
+
         blade_found = true;
         base_run_flag = false;
         sendStatus();
@@ -127,7 +129,7 @@ void setup() {
       }
       
       if (blade_found && !pressure_reached && pulling_blade){ //логика натягивания лопатки
- 
+        finding_timer = millis(); // Если находимся в каком то режиме, то сбрасываем таймер
         base_run_flag = true;
         updateTenzoData();
         
@@ -143,7 +145,8 @@ void setup() {
     
       
       if (pressure_reached && making_ding){ //если дана команда на издание звука в парсере - издать звук
-        
+        finding_timer = millis(); // Если находимся в каком то режиме, то сбрасываем таймер
+
         if (!head_lifting){ //логика "заряжания" медиатора на поднятие
           head_lifting = true;
           stepper_head.reset();
@@ -173,6 +176,8 @@ void setup() {
       
       }
       if (prepearing_for_new_blade){
+        finding_timer = millis(); // Если находимся в каком то режиме, то сбрасываем таймер
+
         if (millis() - wait_recording_start_time >= prepearing_time){ //после того, как условие выполнится 1 раз, оно будет верно всегда 
             if(!stepper_base.tick() && !head_falling){
               head_falling = true; //опускаем головку после движения базы на ширину лопатки 
