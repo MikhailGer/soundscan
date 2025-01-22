@@ -5,11 +5,13 @@ from PyQt5.QtCore import QEvent, pyqtSlot
 from src.interfaces.fixed_interface_2 import Ui_SoundScan
 
 from src.arduino.arduino_controller import ArduinoController
+
 from src.windows.change_history import *
 from src.windows.devise_config import *
-from src.windows.disk_type import *
 from src.windows.model_training import *
 from src.windows.new_measurement import *
+
+from src.windows.DiskTypeTab import DiskTypeTab
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +41,9 @@ class MainWindow(QMainWindow, Ui_SoundScan):
             setup_change_history_tab(self)
             logger.info("Вкладка 'История измерений' настроена")
 
-            setup_disk_type_tab(self)
+            # setup_disk_type_tab(self)
+            self.disk_type_tab = DiskTypeTab(self)
+
             logger.info("Вкладка 'Типы дисков' настроена")
 
             setup_device_config_tab(self)
@@ -76,6 +80,7 @@ class MainWindow(QMainWindow, Ui_SoundScan):
         self.tab_bar.installEventFilter(self)
 
         self.tab_switching_enabled = True
+        self.on_tab_changed(self.tabWidget.currentIndex())
         # self.nm_start.clicked.connect(self.start_scan)
         # self.nm_stop.clicked.connect(self.stop_scan)
 
@@ -101,10 +106,11 @@ class MainWindow(QMainWindow, Ui_SoundScan):
             load_device_config(self)
 
         elif index == self.tabWidget.indexOf(self.disk_type):
-            clear_disk_type_tab(self)
-
+            # clear_disk_type_tab(self)
+            self.disk_type_tab.clear_disk_type_tab_fields()
+            self.disk_type_tab.load_disk_types()
             logger.info("Переход на вкладку 'Типы дисков'. Обновление списка типов дисков.")
-            load_disk_types(self)
+            # load_disk_types(self)
 
         elif index == self.tabWidget.indexOf(self.model_training):
             logger.info("Переход на вкладку 'Обучение ИИ'. Обновление списка типов дисков.")
