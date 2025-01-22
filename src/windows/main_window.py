@@ -101,6 +101,8 @@ class MainWindow(QMainWindow, Ui_SoundScan):
             load_device_config(self)
 
         elif index == self.tabWidget.indexOf(self.disk_type):
+            clear_disk_type_tab(self)
+
             logger.info("Переход на вкладку 'Типы дисков'. Обновление списка типов дисков.")
             load_disk_types(self)
 

@@ -10,6 +10,13 @@ from PyQt5.QtGui import QStandardItemModel, QStandardItem
 # Настройка логирования
 logger = logging.getLogger(__name__)
 
+def clear_disk_type_tab(main_window):
+    main_window.dt_name.clear()
+    main_window.dt_diameter.clear()
+    main_window.dt_blade_distance.clear()
+    print("3333333333333333333333333333333333333333333333333333333")
+
+
 
 def setup_disk_type_tab(main_window):
     """
@@ -42,6 +49,7 @@ def load_disk_types(main_window):
     Загрузка всех типов дисков из базы данных в dt_disk_types.
     """
     logger.info("Загрузка типов дисков из базы данных")
+
     session = DatabaseSession()
     try:
         disk_types = session.query(DiskType).all()
@@ -68,15 +76,28 @@ def add_disk_type(main_window):
     logger.info("Добавление нового типа диска")
     session = DatabaseSession()
     try:
+        dt_disk_type_name = main_window.dt_name.text() if main_window.dt_name.text() else "New disk type"
+        dt_disk_diameter = float(main_window.dt_diameter.text()) if main_window.dt_diameter.text() else 0
+        dt_disk_blade_distance = float(main_window.dt_blade_distance.text()) if main_window.dt_blade_distance.text() else 0
+
+    except ValueError as e:
+        logger.warning(f"Некорректное значение: {e}")
+        show_error_message("Пожалуйста, введите корректные числовые значения.")
+        return
+
+    try:
         # Создаем новый тип диска
         new_disk_type = DiskType(
-            name=f"{datetime.now()} New disk type",
+            name=f"{datetime.now()} {dt_disk_type_name}",
         )
+        new_disk_type.diameter = dt_disk_diameter
+        new_disk_type.blade_distance = dt_disk_blade_distance
         session.add(new_disk_type)
         session.commit()
         logger.info(f"Новый тип диска добавлен: {new_disk_type.name}")
 
         # Добавляем новый элемент в список
+        print(new_disk_type.name)
         item = QListWidgetItem(new_disk_type.name)
         item.setData(Qt.UserRole, new_disk_type.id)
         main_window.dt_disk_types.addItem(item)
