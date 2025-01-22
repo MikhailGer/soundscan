@@ -14,7 +14,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 class Ui_SoundScan(object):
     def setupUi(self, SoundScan):
         SoundScan.setObjectName("SoundScan")
-        SoundScan.resize(1371, 798)
+        SoundScan.setMinimumSize(400, 300)
         self.centralwidget = QtWidgets.QWidget(SoundScan)
         self.centralwidget.setObjectName("centralwidget")
         self.verticalLayout_41 = QtWidgets.QVBoxLayout(self.centralwidget)
