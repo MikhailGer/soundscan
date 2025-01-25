@@ -10,11 +10,11 @@ from src.interfaces.fixed_interface_2_2 import Ui_SoundScan
 from src.arduino.arduino_controller import ArduinoController
 
 from src.windows.change_history import *
-from src.windows.devise_config import *
 from src.windows.model_training import *
 from src.windows.new_measurement import *
 
 from src.windows.DiskTypeTab import DiskTypeTab
+from src.windows.DeviceConfigTab import DeviceConfigTab
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,6 @@ class MainWindow(QMainWindow, Ui_SoundScan):
         self.on_tab_changed_lambda = None
         logger.info("Инициализация главного окна")  # Логирование инициализации главного окна
         try:
-            # uic.loadUi('fixed_interface.ui', self)  # Загрузка интерфейса
             self.setupUi(self)
             logger.info("Интерфейс загружен успешно")
             # Инициализация контроллера Arduino
@@ -33,7 +32,6 @@ class MainWindow(QMainWindow, Ui_SoundScan):
             # logger.info("Контроллер Arduino инициализирован")
 
             # Настройка различных вкладок
-            # setup_new_measurement_tab(self, self.arduino)
             setup_new_measurement_tab(self)
 
             logger.info("Вкладка 'Новые измерения' настроена")
@@ -44,13 +42,12 @@ class MainWindow(QMainWindow, Ui_SoundScan):
             setup_change_history_tab(self)
             logger.info("Вкладка 'История измерений' настроена")
 
-            # setup_disk_type_tab(self)
             self.disk_type_tab = DiskTypeTab(self)
-
             logger.info("Вкладка 'Типы дисков' настроена")
 
-            setup_device_config_tab(self)
+            self.devise_config_tab = DeviceConfigTab(self)
             logger.info("Вкладка 'Параметры устройства' настроена")
+
             self.connection_established = False
             self.arduino_worker = ArduinoController().create_worker()
             self.arduino_worker.connection_established.connect(
@@ -105,14 +102,13 @@ class MainWindow(QMainWindow, Ui_SoundScan):
 
         elif index == self.tabWidget.indexOf(self.devise_config):
             logger.info("Вкладка 'Параметры установки' активна, загружаем конфигурацию устройства")
-            load_device_config(self)
+            self.devise_config_tab.load_device_config()
 
         elif index == self.tabWidget.indexOf(self.disk_type):
             # clear_disk_type_tab(self)
             self.disk_type_tab.clear_disk_type_tab_fields()
             self.disk_type_tab.load_disk_types()
             logger.info("Переход на вкладку 'Типы дисков'. Обновление списка типов дисков.")
-            # load_disk_types(self)
 
         elif index == self.tabWidget.indexOf(self.model_training):
             logger.info("Переход на вкладку 'Обучение ИИ'. Обновление списка типов дисков.")
