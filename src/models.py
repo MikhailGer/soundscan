@@ -13,12 +13,12 @@ class DiskScan(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String, nullable=False)
-    disk_type_id = Column(Integer, ForeignKey(f'{settings.DB_SCHEMA}.disk_type.id'), nullable=False)
+    disk_type_id = Column(Integer, ForeignKey(f'{settings.DB_SCHEMA}.disk_type.id', ondelete='CASCADE'), nullable=False)
     is_training = Column(Boolean, nullable=False)
     created_at = Column(DateTime, default=datetime.datetime.now(datetime.UTC))
 
     disk_type = relationship("DiskType", back_populates="disk_scans")
-    blades = relationship("Blade", back_populates="disk_scan")
+    blades = relationship("Blade", back_populates="disk_scan", cascade="all, delete", passive_deletes=True)
 
 
 class DiskType(Base):
@@ -32,8 +32,10 @@ class DiskType(Base):
     blade_force = Column(Integer, nullable=False, default=0)  # Значение по умолчанию
     created_at = Column(DateTime, default=datetime.datetime.now(datetime.UTC))
 
-    disk_scans = relationship("DiskScan", back_populates="disk_type")
-    models = relationship("DiskTypeModel", back_populates="disk_type")
+    disk_scans = relationship("DiskScan", back_populates="disk_type", cascade="all, delete", passive_deletes=True)
+    models = relationship("DiskTypeModel", back_populates="disk_type", cascade="all, delete", passive_deletes=True)
+
+
 
 
 
@@ -42,7 +44,7 @@ class Blade(Base):
     __table_args__ = {'schema': settings.DB_SCHEMA}
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    disk_scan_id = Column(Integer, ForeignKey(f'{settings.DB_SCHEMA}.disk_scan.id'), nullable=False)
+    disk_scan_id = Column(Integer, ForeignKey(f'{settings.DB_SCHEMA}.disk_scan.id', ondelete='CASCADE'), nullable=False)
     num = Column(Integer, nullable=False)
     # scan = Column(String, nullable=False)
     scan = Column(LargeBinary, nullable=False)
@@ -57,7 +59,7 @@ class DiskTypeModel(Base):
     __table_args__ = {'schema': settings.DB_SCHEMA}
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    disk_type_id = Column(Integer, ForeignKey(f'{settings.DB_SCHEMA}.disk_type.id'), nullable=False)
+    disk_type_id = Column(Integer, ForeignKey(f'{settings.DB_SCHEMA}.disk_type.id', ondelete='CASCADE'), nullable=False)
     model = Column(String, nullable=False)
     created_at = Column(DateTime, default=datetime.datetime.now(datetime.UTC))
 

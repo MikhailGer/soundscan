@@ -2,7 +2,10 @@
 from PyQt5.QtWidgets import QMainWindow
 from PyQt5.QtCore import QEvent, pyqtSlot
 
-from src.interfaces.fixed_interface_2 import Ui_SoundScan
+#стабильная но устаревшая версия интерфейса
+# from src.interfaces.fixed_interface_2 import Ui_SoundScan
+
+from src.interfaces.fixed_interface_2_2 import Ui_SoundScan
 
 from src.arduino.arduino_controller import ArduinoController
 
@@ -80,9 +83,8 @@ class MainWindow(QMainWindow, Ui_SoundScan):
         self.tab_bar.installEventFilter(self)
 
         self.tab_switching_enabled = True
-        self.on_tab_changed(self.tabWidget.currentIndex())
-        # self.nm_start.clicked.connect(self.start_scan)
-        # self.nm_stop.clicked.connect(self.stop_scan)
+
+        self.on_tab_changed(self.tabWidget.currentIndex()) #прогрузить первую страницу, которая выставлена по умолчанию
 
     def eventFilter(self, source, event):  # для блокировки возможности листать TabBar во время сканирования
         if source == self.tab_bar and not self.tab_switching_enabled:
