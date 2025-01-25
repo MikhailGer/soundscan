@@ -1,4 +1,7 @@
 import logging
+from math import trunc
+from operator import truediv
+
 from PyQt5.QtWidgets import QMessageBox
 from sqlalchemy.orm import Session
 from src.db import Session as DatabaseSession
@@ -12,11 +15,27 @@ class DeviceConfigTab:
     def __init__(self, main_window):
         self.main_window = main_window
         self.session = None
+        self.signals_connected = False
 
-        # Подключаем события
-        self.main_window.dc_save.clicked.connect(self.save_device_config)
-        
-        logger.info("Настройка вкладки 'Параметры установки' завершена")
+    def connect_signals(self):
+        #Подключаем события
+        if not self.signals_connected:
+            self.main_window.dc_save.clicked.connect(self.save_device_config)
+            self.signals_connected = True
+
+        logger.info("Настройка вкладки 'Параметры установки' завершена, сигналы включены")
+
+    def disconnect_signals(self):
+        #Подключаем события
+        if self.signals_connected:
+            self.main_window.dc_save.clicked.disconnect(self.save_device_config)
+            self.signals_connected = False
+
+        logger.info("'Параметры установки', сигналы отключены")
+
+    def start_tab(self):
+        logger.info("вкладка 'Конфигурация устройства ': отрисовка")
+        self.load_device_config()
 
     def load_device_config(self):
         """
@@ -171,3 +190,4 @@ class DeviceConfigTab:
         msg.setText(message)
         msg.setWindowTitle("Успех")
         msg.exec_()
+

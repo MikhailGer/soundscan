@@ -17,23 +17,47 @@ class DiskTypeTab(QWidget):
     def __init__(self, main_window):
         super().__init__()
         self.main_window = main_window
-        self.main_window.installEventFilter(self)
-        self.setup_disk_type_tab()
+        self.signals_connected = False
 
-
-    def setup_disk_type_tab(self):
+    def _set_signal_state(self, connect: bool): #сделано для того чтобы в будущем было проще добавлять кнопки
         """
-           Настройка логики для вкладки "Типы дисков".
-           """
-        logger.info("Настройка вкладки 'Типы дисков'")
+        Подключает или отключает сигналы для вкладки 'Типы дисков'. :param connect: True для подключения сигналов, False для отключения.
+        """
+        method = self.main_window.dt_add.clicked.connect if connect else self.main_window.dt_add.clicked.disconnect
+        method(self.add_disk_type)
+        method = self.main_window.dt_drop.clicked.connect if connect else self.main_window.dt_drop.clicked.disconnect
+        method(self.remove_disk_type)
+        method = self.main_window.dt_save.clicked.connect if connect else self.main_window.dt_save.clicked.disconnect
+        method(self.save_disk_type_changes)
+        method = self.main_window.dt_disk_types.itemClicked.connect if connect else self.main_window.dt_disk_types.itemClicked.disconnect
+        method(self.on_item_clicked)
 
-        # Привязываем события
-        self.main_window.dt_add.clicked.connect(self.add_disk_type)
-        self.main_window.dt_drop.clicked.connect(self.remove_disk_type)
-        self.main_window.dt_save.clicked.connect(self.save_disk_type_changes)
-        self.main_window.dt_disk_types.itemClicked.connect(self.on_item_clicked)
-        # Подключение события выбора для QListWidget
-        # self.main_window.dt_disk_types.itemSelectionChanged.connect(self.update_disk_type_details)
+    def connect_signals(self):
+        # Подключаем события
+        if not self.signals_connected:
+            logger.info("Настройка вкладки 'Типы дисков'")
+            self.main_window.installEventFilter(self)
+            # Привязываем события
+            self._set_signal_state(True)
+            self.main_window.dt_disk_types.viewport().installEventFilter(self)
+            self.signals_connected = True
+
+            logger.info("Настройка вкладки 'Типы дисков' завершена, сигналы включены")
+
+    def start_tab(self):
+        logger.info("вкладка 'Типы дисков': отрисовка")
+
+        self.clear_disk_type_tab_fields()
+        self.load_disk_types()
+
+    def disconnect_signals(self):
+        # Подключаем события
+        if self.signals_connected:
+            self._set_signal_state(False)
+            self.main_window.dt_disk_types.viewport().removeEventFilter(self)
+            self.main_window.removeEventFilter(self)
+            self.signals_connected = False
+            logger.info("Вкладка 'Типы дисков', сигналы выключены")
 
     def eventFilter(self, source, event):
         """
@@ -55,7 +79,7 @@ class DiskTypeTab(QWidget):
         self.main_window.dt_blade_force.clear()
         self.main_window.dt_blade_distance.clear()
         self.main_window.dt_disk_types.setCurrentItem(None)
-        logger.info("Поля очищены")
+        logger.info("Поля очищены(DiskTypeTab)")
     
     def on_item_clicked(self, item):
         logger.info(f"Выбран элемент {item.text()}")

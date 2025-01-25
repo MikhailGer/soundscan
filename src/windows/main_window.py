@@ -22,6 +22,13 @@ class MainWindow(QMainWindow, Ui_SoundScan):
 
     def __init__(self):
         super().__init__()
+        self.tabs = {} #словарь для управления вкладками
+
+        self.tabs['disk_type'] = DiskTypeTab(self)
+        self.tabs['device_config'] = DeviceConfigTab(self)
+
+        self.current_tab = None
+
         self.on_tab_changed_lambda = None
         logger.info("Инициализация главного окна")  # Логирование инициализации главного окна
         try:
@@ -42,16 +49,15 @@ class MainWindow(QMainWindow, Ui_SoundScan):
             setup_change_history_tab(self)
             logger.info("Вкладка 'История измерений' настроена")
 
-            self.disk_type_tab = DiskTypeTab(self)
-            logger.info("Вкладка 'Типы дисков' настроена")
-
-            self.devise_config_tab = DeviceConfigTab(self)
-            logger.info("Вкладка 'Параметры устройства' настроена")
+            # self.disk_type_tab = DiskTypeTab(self)
+            # logger.info("Вкладка 'Типы дисков' настроена")
+            #
+            # self.devise_config_tab = DeviceConfigTab(self)
+            # logger.info("Вкладка 'Параметры устройства' настроена")
 
             self.connection_established = False
             self.arduino_worker = ArduinoController().create_worker()
-            self.arduino_worker.connection_established.connect(
-                self.on_connection_established)  # Подключаем обработчик состояния подключения
+            self.arduino_worker.connection_established.connect(self.on_connection_established)  # Подключаем обработчик состояния подключения
             self.arduino_worker.start()  # Запуск потока
             self.setup_ui()
 
@@ -70,6 +76,7 @@ class MainWindow(QMainWindow, Ui_SoundScan):
 
     def setup_ui(self):
         print('setup_ui')
+
         self.on_tab_changed_lambda = lambda index: self.on_tab_changed(
             index)  # Сохраняем лямбду для того, чтобы можно было
         # отключить сигнал в new_measurmnet(чуток костыль)
@@ -94,7 +101,8 @@ class MainWindow(QMainWindow, Ui_SoundScan):
         return super(MainWindow, self).eventFilter(source, event)
 
     def on_tab_changed(self, index):
-        print('on_tab_changed')
+        logger.info("Вкладка изменена")
+        tab_name = None
 
         if index == self.tabWidget.indexOf(self.change_history):
             logger.info("Вкладка 'История измерений' активна, обновляем список типов дисков")
@@ -102,12 +110,13 @@ class MainWindow(QMainWindow, Ui_SoundScan):
 
         elif index == self.tabWidget.indexOf(self.devise_config):
             logger.info("Вкладка 'Параметры установки' активна, загружаем конфигурацию устройства")
-            self.devise_config_tab.load_device_config()
+            # self.devise_config_tab.load_device_config()
+            tab_name = 'device_config'
 
         elif index == self.tabWidget.indexOf(self.disk_type):
-            # clear_disk_type_tab(self)
-            self.disk_type_tab.clear_disk_type_tab_fields()
-            self.disk_type_tab.load_disk_types()
+            # self.disk_type_tab.clear_disk_type_tab_fields()
+            # self.disk_type_tab.load_disk_types()
+            tab_name = 'disk_type'
             logger.info("Переход на вкладку 'Типы дисков'. Обновление списка типов дисков.")
 
         elif index == self.tabWidget.indexOf(self.model_training):
@@ -117,4 +126,20 @@ class MainWindow(QMainWindow, Ui_SoundScan):
         elif index == self.tabWidget.indexOf(self.new_measurement):
             logger.info("Переход на вкладку 'Новое измерение'. Обновление списка типов дисков.")
             load_disk_types_to_combobox(self)
+
+        if tab_name:
+            self.activate_tab(tab_name)
+
+
+    def activate_tab(self, tab_name):
+        for name, tab in self.tabs.items(): #отключаем сигналы для всех вкладок, чтобы не оставалось "хвостов"
+            if name != tab_name:
+                tab.disconnect_signals()
+
+        if tab_name in self.tabs:
+            self.tabs[tab_name].connect_signals()
+            self.tabs[tab_name].start_tab()
+            self.current_tab = tab_name
+            logger.info(f"Активирована вкладка {self.current_tab}")
+
 
