@@ -42,11 +42,19 @@ class NewMeasurementTab(QWidget):
         header = self.main_window.nm_measurements.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.Stretch)
 
+    def _set_signal_state(self, connect: bool): #сделано для того чтобы в будущем было проще добавлять кнопки
+        """
+        Подключает или отключает сигналы для вкладки 'Типы дисков'. :param connect: True для подключения сигналов, False для отключения.
+        """
+        method = self.main_window.nm_start.clicked.connect if connect else self.main_window.nm_start.clicked.disconnect
+        method(self.start_control)
+        method = self.main_window.nm_stop.clicked.connect if connect else self.main_window.nm_stop.clicked.disconnect
+        method(self.stop_control)
+
     def connect_signals(self):
         #Подключаем события
         if not self.signals_connected:
-            self.main_window.nm_start.clicked.connect(self.start_control)
-            self.main_window.nm_stop.clicked.connect(self.stop_control)
+            self._set_signal_state(True)
             self.signals_connected = True
 
         logger.info("Настройка вкладки 'Новое измерение' завершена, сигналы включены")
@@ -54,8 +62,7 @@ class NewMeasurementTab(QWidget):
     def disconnect_signals(self):
         #Подключаем события
         if self.signals_connected:
-            self.main_window.nm_start.clicked.disconnect(self.start_control)
-            self.main_window.nm_stop.clicked.disconnect(self.stop_control)
+            self._set_signal_state(False)
             self.signals_connected = False
 
             logger.info("'Новое измерение', сигналы отключены")

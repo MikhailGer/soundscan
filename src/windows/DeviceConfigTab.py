@@ -18,10 +18,17 @@ class DeviceConfigTab(QWidget):
         self.session = None
         self.signals_connected = False
 
+    def _set_signal_state(self, connect: bool): #сделано для того чтобы в будущем было проще добавлять кнопки
+        """
+        Подключает или отключает сигналы для вкладки 'Типы дисков'. :param connect: True для подключения сигналов, False для отключения.
+        """
+        method = self.main_window.dc_save.clicked.connect if connect else self.main_window.dc_save.clicked.disconnect
+        method(self.save_device_config)
+
     def connect_signals(self):
         #Подключаем события
         if not self.signals_connected:
-            self.main_window.dc_save.clicked.connect(self.save_device_config)
+            self._set_signal_state(True)
             self.signals_connected = True
 
         logger.info("Настройка вкладки 'Параметры установки' завершена, сигналы включены")
@@ -29,7 +36,7 @@ class DeviceConfigTab(QWidget):
     def disconnect_signals(self):
         #Подключаем события
         if self.signals_connected:
-            self.main_window.dc_save.clicked.disconnect(self.save_device_config)
+            self._set_signal_state(False)
             self.signals_connected = False
 
             logger.info("'Параметры установки', сигналы отключены")

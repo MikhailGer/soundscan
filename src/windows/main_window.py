@@ -41,7 +41,6 @@ class MainWindow(QMainWindow, Ui_SoundScan):
             logger.info("Вкладка 'Обучение ИИ' настроена")
 
 
-
             self.connection_established = False
             self.arduino_worker = ArduinoController().create_worker()
             self.arduino_worker.connection_established.connect(self.on_connection_established)  # Подключаем обработчик состояния подключения
