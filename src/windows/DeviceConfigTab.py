@@ -32,7 +32,7 @@ class DeviceConfigTab(QWidget):
             self.main_window.dc_save.clicked.disconnect(self.save_device_config)
             self.signals_connected = False
 
-        logger.info("'Параметры установки', сигналы отключены")
+            logger.info("'Параметры установки', сигналы отключены")
 
     def start_tab(self):
         logger.info("вкладка 'Конфигурация устройства ': отрисовка")

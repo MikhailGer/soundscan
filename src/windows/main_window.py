@@ -34,21 +34,13 @@ class MainWindow(QMainWindow, Ui_SoundScan):
             self.tabs['device_config'] = DeviceConfigTab(self)
             self.tabs['new_measurement'] = NewMeasurementTab(self)
             logger.info("Интерфейс загружен успешно")
-            # Инициализация контроллера Arduino
-            # self.arduino = ArduinoController()
-            # logger.info("Контроллер Arduino инициализирован")
 
-            # Настройка различных вкладок
-
-            # setup_new_measurement_tab(self)
-            # logger.info("Вкладка 'Новые измерения' настроена")
-
-            #Вкладки ниже еще не реализованы в виде классов
+            #Вкладки ниже еще не реализованы в виде классов(пока особо не нужны)
             setup_model_training_tab(self)
             logger.info("Вкладка 'Обучение ИИ' настроена")
-
             setup_change_history_tab(self)
             logger.info("Вкладка 'История измерений' настроена")
+
 
             self.connection_established = False
             self.arduino_worker = ArduinoController().create_worker()
@@ -97,6 +89,9 @@ class MainWindow(QMainWindow, Ui_SoundScan):
     def on_tab_changed(self, index):
         logger.info("Вкладка изменена")
         tab_name = None
+        for name, tab in self.tabs.items(): #отключаем сигналы для всех вкладок, чтобы не оставалось "хвостов(не срабатывали действия для старых вкладок)"
+            if name != tab_name:
+                tab.disconnect_signals() #В каждом классе должны быть прописаны методы connect_signals и disconnect_signals
 
         if index == self.tabWidget.indexOf(self.change_history):
             logger.info("Вкладка 'История измерений' активна, обновляем список типов дисков")
@@ -123,9 +118,9 @@ class MainWindow(QMainWindow, Ui_SoundScan):
 
 
     def activate_tab(self, tab_name):
-        for name, tab in self.tabs.items(): #отключаем сигналы для всех вкладок, чтобы не оставалось "хвостов(не срабатывали действия для старых вкладок)"
-            if name != tab_name:
-                tab.disconnect_signals() #В каждом классе должны быть прописаны методы connect_signals и disconnect_signals
+        # for name, tab in self.tabs.items(): #отключаем сигналы для всех вкладок, чтобы не оставалось "хвостов(не срабатывали действия для старых вкладок)"
+        #     if name != tab_name:
+        #         tab.disconnect_signals() #В каждом классе должны быть прописаны методы connect_signals и disconnect_signals
 
         if tab_name in self.tabs:
             self.tabs[tab_name].connect_signals()

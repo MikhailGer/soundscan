@@ -58,7 +58,7 @@ class NewMeasurementTab(QWidget):
             self.main_window.nm_stop.clicked.disconnect(self.stop_control)
             self.signals_connected = False
 
-        logger.info("'Новое измерение', сигналы отключены")
+            logger.info("'Новое измерение', сигналы отключены")
 
     def start_tab(self):
         logger.info("вкладка 'Новое измерение': отрисовка")
