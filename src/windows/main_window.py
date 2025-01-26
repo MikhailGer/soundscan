@@ -1,4 +1,4 @@
-# from PyQt5 import uic
+import logging
 from PyQt5.QtWidgets import QMainWindow
 from PyQt5.QtCore import QEvent, pyqtSlot
 
@@ -9,8 +9,7 @@ from src.interfaces.fixed_interface_2_2 import Ui_SoundScan
 
 from src.arduino.arduino_controller import ArduinoController
 
-from src.windows.model_training import *
-
+from src.windows.ModelTrainingTab import ModelTrainingTab
 from src.windows.ChangeHistoryTab import ChangeHistoryTab
 from src.windows.NewMeasurementTab import NewMeasurementTab
 from src.windows.DiskTypeTab import DiskTypeTab
@@ -34,12 +33,8 @@ class MainWindow(QMainWindow, Ui_SoundScan):
             self.tabs['device_config'] = DeviceConfigTab(self)
             self.tabs['new_measurement'] = NewMeasurementTab(self)
             self.tabs['change_history'] = ChangeHistoryTab(self)
+            self.tabs['model_training'] = ModelTrainingTab(self)
             logger.info("Интерфейс загружен успешно")
-
-            #Вкладки ниже еще не реализованы в виде классов(пока особо не нужны)
-            setup_model_training_tab(self)
-            logger.info("Вкладка 'Обучение ИИ' настроена")
-
 
             self.connection_established = False
             self.arduino_worker = ArduinoController().create_worker()
@@ -106,7 +101,7 @@ class MainWindow(QMainWindow, Ui_SoundScan):
 
         elif index == self.tabWidget.indexOf(self.model_training):
             logger.info("Переход на вкладку 'Обучение ИИ'. Обновление списка типов дисков.")
-            update_disk_type_combobox(self)
+            tab_name = 'model_training'
 
         elif index == self.tabWidget.indexOf(self.new_measurement):
             logger.info("Переход на вкладку 'Новое измерение'. Обновление списка типов дисков.")
