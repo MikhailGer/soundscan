@@ -2,7 +2,7 @@ import logging
 from math import trunc
 from operator import truediv
 
-from PyQt5.QtWidgets import QMessageBox
+from PyQt5.QtWidgets import QMessageBox, QWidget
 from sqlalchemy.orm import Session
 from src.db import Session as DatabaseSession
 from src.models import DeviceConfig
@@ -11,8 +11,9 @@ import serial.tools.list_ports
 # Настройка логгера для модуля
 logger = logging.getLogger(__name__)
 
-class DeviceConfigTab:
+class DeviceConfigTab(QWidget):
     def __init__(self, main_window):
+        super().__init__()
         self.main_window = main_window
         self.session = None
         self.signals_connected = False

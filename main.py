@@ -4,7 +4,7 @@ import sys
 # from PyQt5 import uic
 from PyQt5.QtWidgets import QApplication
 
-from src.windows.new_measurement import *
+from src.windows.NewMeasurementTab import *
 from src.windows.main_window import MainWindow
 
 # Конфигурация логирования

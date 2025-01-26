@@ -97,6 +97,39 @@ class Scanning(QObject):
             self.stop_scan() #в случае отключения платы остановить
             logger.error("Ошибка подключения к Arduino. Аварийная остановка")
 
+    @pyqtSlot()
+    def start_scan(self):
+        if self.connection_established:
+            session = DatabaseSession()
+            try:
+                new_disk_scan = DiskScan(
+                    name=f"{datetime.now()} New disc_scan",
+                    disk_type_id=self.disk_type_id,
+                    is_training=False
+                )
+                session.add(new_disk_scan)
+                session.commit()
+                logger.error(
+                    f"Создан DiskScan c id {new_disk_scan.id} относящийся к DiskType {new_disk_scan.disk_type_id}")
+                self.disk_scan_id = new_disk_scan.id
+
+                # Получаем blade_force из DiskType
+                disk_type = session.query(DiskType).get(self.disk_type_id)
+                if disk_type:
+                    self.blade_force = disk_type.blade_force
+                else:
+                    logger.error(f"DiskType с id {self.disk_type_id} не найден.")
+            except Exception as e:
+                logger.error("Ошибка создания экземпляра сканирования или получения blade_force: %s", e, exc_info=True)
+            finally:
+                session.close()
+            self.arduino_worker.data_received.connect(self.on_data_received)  # Подключаем обработчик данных
+            self.get_motors_settings_from_db()
+            self.start_base_motor()
+            self.status()
+        else:
+            logger.error("Ошибка старта сканирования: устройство не подключено")
+
     def process_next_event(self):
         if self.stopped:
             self.processing = False
@@ -177,37 +210,6 @@ class Scanning(QObject):
         command = {"command": "set_base_settings", "speed": defaults.base_motor_speed, "accel": defaults.base_motor_accel,
                    "MaxSpeed": defaults.base_motor_MaxSpeed}
         self.arduino_worker.send_command(command)
-    @pyqtSlot()
-    def start_scan(self):
-        if self.connection_established:
-            session = DatabaseSession()
-            try:
-                new_disk_scan = DiskScan(
-                    name=f"{datetime.now()} New disc_scan",
-                    disk_type_id=self.disk_type_id,
-                    is_training=False
-                )
-                session.add(new_disk_scan)
-                session.commit()
-                logger.error(f"Создан DiskScan c id {new_disk_scan.id} относящийся к DiskType {new_disk_scan.disk_type_id}")
-                self.disk_scan_id = new_disk_scan.id
-
-                # Получаем blade_force из DiskType
-                disk_type = session.query(DiskType).get(self.disk_type_id)
-                if disk_type:
-                    self.blade_force = disk_type.blade_force
-                else:
-                    logger.error(f"DiskType с id {self.disk_type_id} не найден.")
-            except Exception as e:
-                logger.error("Ошибка создания экземпляра сканирования или получения blade_force: %s", e, exc_info=True)
-            finally:
-                session.close()
-            self.arduino_worker.data_received.connect(self.on_data_received)  # Подключаем обработчик данных
-            self.get_motors_settings_from_db()
-            self.start_base_motor()
-            self.status()
-        else:
-            logger.error("Ошибка старта сканирования: устройство не подключено")
 
     def start_base_motor(self):
         command = {"command": "set_motor_on", "state": True}
