@@ -38,6 +38,7 @@ class NewMeasurementTab(QWidget):
         super().__init__()
         self.main_window = main_window
         self.signals_connected = False
+        self.current_scan = None
         header = self.main_window.nm_measurements.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.Stretch)
 
@@ -130,29 +131,28 @@ class NewMeasurementTab(QWidget):
             logger.error("Не выбран тип диска для сканирования.")
             return
 
-        try:                ##############Понадобится позже когда будет классовая логика для того чтобы сразу при инициализации задать параметры списку#######################################################################
-                # header = self.main_window.nm_measurements.horizontalHeader()
-                # header.setSectionResizeMode(QHeaderView.Stretch)
+        try:
             # Используем контекстный менеджер для автоматического закрытия сессии
             with Session() as session:
                 # Получаем тип диска из базы данных по имени
                 disk_type = session.query(DiskType).filter_by(name=selected_item).first()
-                if disk_type:
-                    logger.info(f"Запуск сканирования диска с ID {disk_type.id}")
-                    set_controls_enabled(main_window, False)  # Блокируем элементы
-                    # Запуск контроля на Arduino
-                    logger.info("Отправка команды на старт контроля")
-                    self.current_scan = Scanning(disk_type.id, self.main_window.arduino_worker)
-                    self.scanning_thread = QThread()
-                    self.current_scan.moveToThread(self.scanning_thread)
-                    self.scanning_thread.started.connect(self.current_scan.start_scan)
-                    self.current_scan.blade_downloaded.connect(self.update_blade_fields)
-                    self.current_scan.scanning_finished.connect(self.scanning_thread.quit)
-                    self.current_scan.scanning_finished.connect(self.scanning_thread.deleteLater)
-                    self.current_scan.scanning_finished.connect(self.scanning_thread.deleteLater)
-                    self.scanning_thread.start()
-                else:
+                if not disk_type:
                     logger.error(f"Тип диска с именем '{selected_item}' не найден.")
+                    return
+                logger.info(f"Запуск сканирования диска с ID {disk_type.id}")
+                set_controls_enabled(main_window, False)  # Блокируем элементы
+                # Запуск контроля на Arduino
+                logger.info("Отправка команды на старт контроля")
+                self.current_scan = Scanning(disk_type.id, self.main_window.arduino_worker)
+                self.scanning_thread = QThread()
+                self.current_scan.moveToThread(self.scanning_thread)
+                self.scanning_thread.started.connect(self.current_scan.start_scan)
+                self.current_scan.blade_downloaded.connect(self.update_blade_fields)
+                self.current_scan.scanning_finished.connect(self.scanning_thread.quit)
+                self.current_scan.scanning_finished.connect(self.scanning_thread.deleteLater)
+                self.current_scan.scanning_finished.connect(self.scanning_thread.deleteLater)
+                self.scanning_thread.start()
+
 
         except Exception as e:
             logger.error(f"Ошибка при старте сканирования: {e}", exc_info=True)
@@ -161,13 +161,18 @@ class NewMeasurementTab(QWidget):
         """
         Остановка процесса контроля.
         """
+        if not self.current_scan:
+            logger.info("Процесс контроля еще не был начат")
+            return
         logger.info("Остановка процесса контроля")
         # main_window.current_scan.stop()
-        QMetaObject.invokeMethod(self.main_window.current_scan, 'stop_scan', Qt.QueuedConnection)
+        QMetaObject.invokeMethod(self.current_scan, 'stop_scan', Qt.QueuedConnection)
         # arduino.stop_mode()  # Остановка контроля на Arduino
         set_controls_enabled(self.main_window, True)  # Разблокируем элементы
         logger.info("Контроль завершен и элементы интерфейса разблокированы")
         update_blade_fields(self.main_window)
+        self.current_scan = None
+
 
     def add_blade(self):
         print("пока пусто")
