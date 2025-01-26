@@ -9,9 +9,9 @@ from src.interfaces.fixed_interface_2_2 import Ui_SoundScan
 
 from src.arduino.arduino_controller import ArduinoController
 
-from src.windows.change_history import *
 from src.windows.model_training import *
 
+from src.windows.ChangeHistoryTab import ChangeHistoryTab
 from src.windows.NewMeasurementTab import NewMeasurementTab
 from src.windows.DiskTypeTab import DiskTypeTab
 from src.windows.DeviceConfigTab import DeviceConfigTab
@@ -33,13 +33,13 @@ class MainWindow(QMainWindow, Ui_SoundScan):
             self.tabs['disk_type'] = DiskTypeTab(self)
             self.tabs['device_config'] = DeviceConfigTab(self)
             self.tabs['new_measurement'] = NewMeasurementTab(self)
+            self.tabs['change_history'] = ChangeHistoryTab(self)
             logger.info("Интерфейс загружен успешно")
 
             #Вкладки ниже еще не реализованы в виде классов(пока особо не нужны)
             setup_model_training_tab(self)
             logger.info("Вкладка 'Обучение ИИ' настроена")
-            setup_change_history_tab(self)
-            logger.info("Вкладка 'История измерений' настроена")
+
 
 
             self.connection_established = False
@@ -95,7 +95,7 @@ class MainWindow(QMainWindow, Ui_SoundScan):
 
         if index == self.tabWidget.indexOf(self.change_history):
             logger.info("Вкладка 'История измерений' активна, обновляем список типов дисков")
-            update_disk_type_combobox(self)
+            tab_name = 'change_history'
 
         elif index == self.tabWidget.indexOf(self.devise_config):
             logger.info("Вкладка 'Параметры установки' активна, загружаем конфигурацию устройства")
@@ -129,4 +129,3 @@ class MainWindow(QMainWindow, Ui_SoundScan):
             logger.info(f"Активирована вкладка {self.current_tab}")
         else:
             logger.info(f"Такой вкладки не существует")
-
