@@ -52,7 +52,7 @@ class MainWindow(QMainWindow, Ui_SoundScan):
         if connected:
             self.connection_established = True
             logger.info("Подключено к Ардуино!.")
-            set_controls_enabled(self, True)
+            self.tabs["new_measurement"].set_controls_enabled(True)
         else:
             logger.info("Ошибка подключения к Arduino.")
 

@@ -147,7 +147,7 @@ class NewMeasurementTab(QWidget):
                     logger.error(f"Тип диска с именем '{selected_item}' не найден.")
                     return
                 logger.info(f"Запуск сканирования диска с ID {disk_type.id}")
-                set_controls_enabled(main_window, False)  # Блокируем элементы
+                self.set_controls_enabled(False)  # Блокируем элементы
                 # Запуск контроля на Arduino
                 logger.info("Отправка команды на старт контроля")
                 self.current_scan = Scanning(disk_type.id, self.main_window.arduino_worker)
@@ -175,7 +175,7 @@ class NewMeasurementTab(QWidget):
         # main_window.current_scan.stop()
         QMetaObject.invokeMethod(self.current_scan, 'stop_scan', Qt.QueuedConnection)
         # arduino.stop_mode()  # Остановка контроля на Arduino
-        set_controls_enabled(self.main_window, True)  # Разблокируем элементы
+        set_controls_enabled(True)  # Разблокируем элементы
         logger.info("Контроль завершен и элементы интерфейса разблокированы")
         update_blade_fields(self.main_window)
         self.current_scan = None
