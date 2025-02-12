@@ -1,5 +1,5 @@
 import datetime
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, Float, LargeBinary
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, Float, LargeBinary, cast
 from sqlalchemy.orm import relationship
 
 from src.config import settings
@@ -19,6 +19,8 @@ class DiskScan(Base):
 
     disk_type = relationship("DiskType", back_populates="disk_scans")
     blades = relationship("Blade", back_populates="disk_scan", cascade="all, delete", passive_deletes=True)
+
+
 
 
 class DiskType(Base):

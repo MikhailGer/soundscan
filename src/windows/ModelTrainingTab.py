@@ -80,7 +80,7 @@ class ModelTrainingTab(QWidget):
         if selected_disk_type_id:
             session = Session()
             try:
-                disk_scans = session.query(DiskScan).filter_by(disk_type_id=selected_disk_type_id).all()
+                disk_scans = session.query(DiskScan).order_by(DiskScan.id.asc()).all()
                 logger.info(f"Загружено {len(disk_scans)} измерений для типа диска ID {selected_disk_type_id}")
 
                 # Очищаем ListWidget
