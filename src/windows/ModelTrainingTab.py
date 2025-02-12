@@ -1,7 +1,7 @@
 import logging
 from functools import partial
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QListWidgetItem, QCheckBox, QWidget, QHBoxLayout, QTableWidgetItem, QHeaderView
+from PyQt5.QtWidgets import QListWidgetItem, QCheckBox, QWidget, QHBoxLayout, QTableWidgetItem, QHeaderView, QPushButton
 from src.db import Session
 from src.models import DiskType, DiskScan, Blade
 
@@ -152,13 +152,14 @@ class ModelTrainingTab(QWidget):
 
             session = Session()
             try:
-                blades = session.query(Blade).filter_by(disk_scan_id=selected_scan_id).all()
+                blades = session.query(Blade).filter_by(disk_scan_id=selected_scan_id).order_by(Blade.num.asc()).all()
                 logger.info(f"Загружено {len(blades)} лопаток для измерения ID {selected_scan_id}")
 
                 self.main_window.mt_blade_results.clearContents()
                 self.main_window.mt_blade_results.setRowCount(len(blades))  # Устанавливаем количество строк
-                self.main_window.mt_blade_results.setColumnCount(2)
-                self.main_window.mt_blade_results.setHorizontalHeaderLabels(["Номер лопатки", "Дефект"])
+                self.main_window.mt_blade_results.setColumnCount(3)
+                self.main_window.mt_blade_results.setHorizontalHeaderLabels(["Номер лопатки", "Дефект", "Ручное управление статусом"])
+                self.main_window.mt_blade_results.horizontalHeader().setVisible(True)
 
                 for row, blade in enumerate(blades):
                     self.main_window.mt_blade_results.setItem(row, 0, QTableWidgetItem(str(blade.num)))
@@ -166,12 +167,47 @@ class ModelTrainingTab(QWidget):
                     self.main_window.mt_blade_results.setItem(row, 1, QTableWidgetItem(prediction))
                     logger.info(f"Лопатка {blade.num}:, Дефект: {prediction}")
 
-                self.main_window.mt_blade_results.resizeColumnsToContents()
-                self.main_window.mt_blade_results.resizeRowsToContents()
+                    btn_no_defect = QPushButton("Нет дефекта")
+                    btn_no_defect.clicked.connect(lambda _, b=blade: self.set_blade_defect_status(b.id,1))
+                    btn_no_defect.setStyleSheet("background-color: lightgreen;")
+
+                    btn_defect = QPushButton("Дефект")
+                    btn_defect.clicked.connect(lambda _, b=blade: self.set_blade_defect_status(b.id, 0))
+                    btn_defect.setStyleSheet("background-color: red; color: white;")
+
+
+                    widget = QWidget()
+                    layout = QHBoxLayout()
+                    layout.addWidget(btn_defect)
+                    layout.addWidget(btn_no_defect)
+                    layout.setContentsMargins(0,0,0,0)
+                    widget.setLayout(layout)
+
+                    self.main_window.mt_blade_results.setCellWidget(row, 2, widget)
+
+                # self.main_window.mt_blade_results.resizeColumnsToContents()
+                # self.main_window.mt_blade_results.resizeRowsToContents()
 
                 header = self.main_window.mt_blade_results.horizontalHeader()
-                header.setSectionResizeMode(QHeaderView.Stretch)
+                for i in range(self.main_window.mt_blade_results.columnCount()):
+                    header.setSectionResizeMode(i, QHeaderView.ResizeToContents)
             except Exception as e:
                 logger.error(f"Ошибка при обновлении результатов для измерения ID {selected_scan_id}: {e}")
             finally:
                 session.close()
+
+    def set_blade_defect_status(self, blade_id, status):
+        """Обновляет статус дефекта лопатки по нажатию"""
+        logger.info(f"Изменение статуса дефекта лопатки ID {blade_id} на {status}")
+        session = Session()
+        try:
+            blade = session.query(Blade).get(blade_id)
+            if blade:
+                blade.prediction = status
+                session.commit()
+                logger.info(f"Статус дефекта лопатки ID {blade_id} изменен на {status}")
+                self.update_blade_results()
+        except Exception as e:
+            logger.error(f"Ошибка при изменении статуса дефекта лопатки ID {Blade}: {e}")
+        finally:
+            session.close()
