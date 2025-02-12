@@ -216,7 +216,7 @@ class NewMeasurementTab(QWidget):
                 disk_scan_ids = [ds.id for ds in disk_scans]
 
                 # Получаем Blade, связанные с этими DiskScan
-                blades = session.query(Blade).filter(Blade.disk_scan_id.in_(disk_scan_ids)).all()
+                blades = session.query(Blade).filter(Blade.disk_scan_id.in_(disk_scan_ids)).order_by(Blade.disk_scan_id, Blade.num).all()
 
                 logger.info(f"Загружено {len(blades)} лопаток для DiskType с id {disk_type.id}.")
 

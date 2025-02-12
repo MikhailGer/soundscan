@@ -43,8 +43,8 @@ class Scanning(QObject):
         self.stopped = None
         self.event_queue = deque()
         self.processing = False
-
-        self.recording_duration = 5
+        #пофиксить время записи чтобы было не захардкожено
+        self.recording_duration = 4
         self.num = 0
         self.blade_created = False
         self.data_updated = False
