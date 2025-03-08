@@ -35,7 +35,7 @@ logging.basicConfig(
 
 class Scanning(QObject):
     scanning_finished = pyqtSignal()
-    blade_downloaded = pyqtSignal()
+    blade_downloaded = pyqtSignal(object)
 
     def __init__(self, disk_type_id,arduino_worker):
         super().__init__()
@@ -354,7 +354,7 @@ class Scanning(QObject):
                                     #для имитации работы ML пусть просто будет строчка prediction = false
 
                                     self.blade_created = False
-                                    self.blade_downloaded.emit()
+                                    self.blade_downloaded.emit(new_blade)
                                 else:
                                     logger.error("!!!Ошибка записи файла в БД")
 

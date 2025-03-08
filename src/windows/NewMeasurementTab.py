@@ -5,7 +5,7 @@ from multiprocessing.managers import Value
 from PyQt5.QtWidgets import QHeaderView, QWidget, QDialog, QBoxLayout, QLabel, QLineEdit, QCheckBox, QPushButton, \
     QVBoxLayout, QMessageBox
 from PyQt5.QtWidgets import QTableWidgetItem, QTabBar, QTabWidget
-from PyQt5.QtCore import QMetaObject, Qt, QThread, QLine
+from PyQt5.QtCore import QMetaObject, Qt, QThread, QLine, pyqtSlot
 from PyQt5.QtGui import QIntValidator
 from sqlalchemy import values, Select
 
@@ -88,8 +88,13 @@ class NewMeasurementTab(QWidget):
         self.series_infinite = False
         self.series_count = 0
         self.series_stoped = False
+
+        self.current_disk_type_blades = []
+        self.current_disk_type_id = None
+
         header = self.main_window.nm_measurements.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.Stretch)
+
 
     def _set_signal_state(self, connect: bool): #сделано для того чтобы в будущем было проще добавлять кнопки
         """
@@ -156,7 +161,7 @@ class NewMeasurementTab(QWidget):
         self.main_window.nm_stop.setEnabled(not enabled)
         if not enabled:
             try:
-                disable_tab_switching(main_window)
+                self.disable_tab_switching()
             except Exception as e:
                 logger.error(f"Ошибка блокировки интерфейса: {e}")
         else:
@@ -209,7 +214,7 @@ class NewMeasurementTab(QWidget):
                 self.scanning_thread = QThread()
                 self.current_scan.moveToThread(self.scanning_thread)
                 self.scanning_thread.started.connect(self.current_scan.start_scan)
-                self.current_scan.blade_downloaded.connect(self.update_blade_fields)
+                self.current_scan.blade_downloaded.connect(self.on_blade_downloaded)
                 self.current_scan.scanning_finished.connect(self.scanning_thread.quit)
                 self.current_scan.scanning_finished.connect(self.on_scanning_finished)
                 self.current_scan.scanning_finished.connect(self.scanning_thread.deleteLater)
@@ -313,6 +318,9 @@ class NewMeasurementTab(QWidget):
                 # Получаем Blade, связанные с этими DiskScan
                 blades = session.query(Blade).filter(Blade.disk_scan_id.in_(disk_scan_ids)).order_by(Blade.disk_scan_id, Blade.num).all()
 
+                self.current_disk_type_blades = blades
+                self.current_disk_type_id = disk_type.id
+
                 logger.info(f"Загружено {len(blades)} лопаток для DiskType с id {disk_type.id}.")
 
                 # Заполнение таблицы измерений
@@ -332,6 +340,25 @@ class NewMeasurementTab(QWidget):
                     logger.debug(f"DiskScan {blade.disk_scan_id}, Лопатка {blade.num}: {result}")
             except Exception as e:
                 logger.error(f"Ошибка при обновлении данных лопаток: {e}", exc_info=True)
+
+    @pyqtSlot(object)
+    def on_blade_downloaded(self, blade):
+        if blade.disk_scan.disk_type.id == self.current_disk_type_id:
+            self.current_disk_type_blades.append(blade)
+            self.add_blade_to_table(blade)
+
+    def add_blade_to_table(self, blade):
+        table = self.main_window.nm_measurements
+        row_count = table.rowCount()
+        table.insertRow(row_count)
+
+        table.setItem(row_count, 0, QTableWidgetItem(str(blade.disk_scan_id)))
+        table.setItem(row_count, 1, QTableWidgetItem(str(blade.num)))
+        result = "Годен" if blade.prediction else "Не годен"
+        table.setItem(row, 2, QTableWidgetItem(result))
+
+        table.scrollToItem(table.item(row_count, 0))
+
 
 
 
