@@ -1,11 +1,56 @@
 import logging
-from PyQt5.QtWidgets import QHeaderView, QWidget
+from itertools import repeat
+from multiprocessing.managers import Value
+
+from PyQt5.QtWidgets import QHeaderView, QWidget, QDialog, QBoxLayout, QLabel, QLineEdit, QCheckBox, QPushButton, \
+    QVBoxLayout, QMessageBox
 from PyQt5.QtWidgets import QTableWidgetItem, QTabBar, QTabWidget
-from PyQt5.QtCore import QMetaObject, Qt, QThread
+from PyQt5.QtCore import QMetaObject, Qt, QThread, QLine
+from PyQt5.QtGui import QIntValidator
+from sqlalchemy import values, Select
+
 from src.db import Session
 from src.models import DiskType, Blade, DiskScan
 
 from src.scan.Scanning import Scanning
+
+class SeriesScanDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Серийное сканирование")
+
+        layout = QVBoxLayout()
+        self.label = QLabel("Укажите количество сканирований:")
+        self.line_editscans = QLineEdit()
+        self.checkbox_infinite = QCheckBox("Бесконечное сканирование")
+
+        self.line_editscans.setValidator(QIntValidator(1,99999, self.line_editscans))
+        self.button_ok = QPushButton("Начать")
+        self.button_cancel = QPushButton("Отмена")
+
+        layout.addWidget(self.label)
+        layout.addWidget(self.line_editscans)
+        layout.addWidget(self.checkbox_infinite)
+        layout.addWidget(self.button_ok)
+        layout.addWidget(self.button_cancel)
+
+        self.setLayout(layout)
+        self.button_cancel.clicked.connect(self.reject)
+        self.button_ok.clicked.connect(self.accept)
+
+    def get_values(self):
+        if self.checkbox_infinite.isChecked():
+            return None
+        else:
+            try:
+                value = int(self.line_editscans.text().strip())
+                if not value or value <= 1:
+                    QMessageBox.warning(self, "Ошибка", "Введите целое число больше 1")
+                    self.reject()
+                else:
+                    return value
+            except ValueError:
+                return 0
 
 #классы для блокировки интерфейса
 class NonSwitchableTabBar(QTabBar):
@@ -39,6 +84,10 @@ class NewMeasurementTab(QWidget):
         self.main_window = main_window
         self.signals_connected = False
         self.current_scan = None
+        self.series_mode = False
+        self.series_infinite = False
+        self.series_count = 0
+        self.series_stoped = False
         header = self.main_window.nm_measurements.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.Stretch)
 
@@ -50,6 +99,8 @@ class NewMeasurementTab(QWidget):
         method(self.start_control)
         method = self.main_window.nm_stop.clicked.connect if connect else self.main_window.nm_stop.clicked.disconnect
         method(self.stop_control)
+        method = self.main_window.nm_serial_scan.clicked.connect if connect else self.main_window.nm_serial_scan.clicked.disconnect
+        method(self.on_series_scan_clicked)
 
     def connect_signals(self):
         #Подключаем события
@@ -66,6 +117,7 @@ class NewMeasurementTab(QWidget):
             self.signals_connected = False
 
             logger.info("'Новое измерение', сигналы отключены")
+
 
     def start_tab(self):
         logger.info("вкладка 'Новое измерение': отрисовка")
@@ -98,6 +150,7 @@ class NewMeasurementTab(QWidget):
         logger.info(f"Установка доступности элементов интерфейса: {'Включены' if enabled else 'Отключены'}")
         # main_window.tabWidget.setEnabled(enabled) //блокирует все эллементы и не дает нажимать кнопки
         self.main_window.nm_start.setEnabled(enabled)
+        self.main_window.nm_serial_scan.setEnabled(enabled)
         self.main_window.nm_disk_type.setEnabled(enabled)
         self.main_window.nm_measurements.setEnabled(enabled)
         self.main_window.nm_stop.setEnabled(not enabled)
@@ -130,6 +183,8 @@ class NewMeasurementTab(QWidget):
         """
         if not self.main_window.connection_established:
             logger.error("Не подключена плата.")
+            QMessageBox.warning(self,"Ошибка", "Не подключена плата")
+
             return
         logger.info("Начало процесса контроля")
         selected_item = self.main_window.nm_disk_type.currentText()
@@ -156,8 +211,9 @@ class NewMeasurementTab(QWidget):
                 self.scanning_thread.started.connect(self.current_scan.start_scan)
                 self.current_scan.blade_downloaded.connect(self.update_blade_fields)
                 self.current_scan.scanning_finished.connect(self.scanning_thread.quit)
+                self.current_scan.scanning_finished.connect(self.on_scanning_finished)
                 self.current_scan.scanning_finished.connect(self.scanning_thread.deleteLater)
-                self.current_scan.scanning_finished.connect(self.scanning_thread.deleteLater)
+                # self.current_scan.scanning_finished.connect(self.scanning_thread.deleteLater) убрал 8.03.25
                 self.scanning_thread.start()
 
 
@@ -172,13 +228,52 @@ class NewMeasurementTab(QWidget):
             logger.info("Процесс контроля еще не был начат")
             return
         logger.info("Остановка процесса контроля")
+        self.series_stoped = True
         # main_window.current_scan.stop()
         QMetaObject.invokeMethod(self.current_scan, 'stop_scan', Qt.QueuedConnection)
-        # arduino.stop_mode()  # Остановка контроля на Arduino
-        set_controls_enabled(True)  # Разблокируем элементы
+
+    def on_series_scan_clicked(self):
+        if not self.main_window.connection_established:
+            logger.error("Не подключена плата.")
+            QMessageBox.warning(self,"Ошибка", "Не подключена плата")
+            return
+        dialog = SeriesScanDialog(self)
+        if dialog.exec_() == QDialog.Accepted:
+            repeats = dialog.get_values()
+            if repeats is None:
+                logger.info("Начать бесконечное сканирование")
+                self.start_series_scan(infinite=True)
+            else:
+                logger.info(f"Начать сканирование {repeats} раз")
+                self.start_series_scan(repeats=repeats)
+
+
+    def start_series_scan(self, infinite = False, repeats=1):
+        self.series_mode = True
+        self.series_stoped = False
+        self.series_infinite = infinite
+        self.series_count = repeats if not infinite else float('inf')
+        logger.info("Начинается серийное сканирование")
+        self.start_control()
+
+
+    def on_scanning_finished(self):
+        if self.series_mode and not self.series_stoped:
+            logger.info("Серийное сканирование: одна из итераций завершилась")
+            if self.series_infinite or self.series_count > 1:
+                if not self.series_infinite:
+                    self.series_count -= 1
+                    logger.info(f"Серийное сканирование: осталось {self.series_count} итераций")
+                self.start_control()
+                return
+            else:
+                self.series_mode = False
+
+        self.set_controls_enabled(True)  # Разблокируем элементы
         logger.info("Контроль завершен и элементы интерфейса разблокированы")
-        update_blade_fields(self.main_window)
+        self.update_blade_fields()
         self.current_scan = None
+        self.scanning_thread = None
 
 
     def add_blade(self):
@@ -237,6 +332,7 @@ class NewMeasurementTab(QWidget):
                     logger.debug(f"DiskScan {blade.disk_scan_id}, Лопатка {blade.num}: {result}")
             except Exception as e:
                 logger.error(f"Ошибка при обновлении данных лопаток: {e}", exc_info=True)
+
 
 
 

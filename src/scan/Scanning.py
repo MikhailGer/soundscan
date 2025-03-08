@@ -40,11 +40,11 @@ class Scanning(QObject):
     def __init__(self, disk_type_id,arduino_worker):
         super().__init__()
 
+        self.stopping_flag = False
         self.stopped = None
         self.event_queue = deque()
         self.processing = False
-        #пофиксить время записи чтобы было не захардкожено
-        self.recording_duration = 4
+        self.recording_duration = None #присваиваем значение ниже в методе get_motors_settings_from_db или set_default_motor_settings
         self.num = 0
         self.blade_created = False
         self.data_updated = False
@@ -127,6 +127,7 @@ class Scanning(QObject):
             self.get_motors_settings_from_db()
             self.start_base_motor()
             self.status()
+            self.start_command() #здесь начинаем сканирование
         else:
             logger.error("Ошибка старта сканирования: устройство не подключено")
 
@@ -160,6 +161,20 @@ class Scanning(QObject):
                 searching_time = config.searching_time
                 recording_time = config.recording_time
                 force_to_find = config.force_to_find
+                blade_distance = DiskType().blade_distance
+
+                try:
+                    disk_type = session.query(DiskType).get(self.disk_type_id)
+                    if disk_type:
+                        blade_distance  = disk_type.blade_distance
+                    else:
+                        logger.error(f"DiskType с id {self.disk_type_id} не найден.")
+                except Exception as e:
+                    logger.error("Ошибка получения DiskType: %s", e,
+                                 exc_info=True)
+
+                self.recording_duration = recording_time
+
                 #ниже происходит залив на плату конфигурационных данных, сделал отдельно для стабильности работы
                 command = {"command": "set_head_settings", "speed": start_speed_head, "accel": accel_head, "MaxSpeed": MaxSpeed_head}
                 self.arduino_worker.send_command(command)
@@ -171,20 +186,29 @@ class Scanning(QObject):
                 self.arduino_worker.send_command(command)
 
                 command = {"command": "set_searching_time", "searching_time": searching_time}
+
                 self.arduino_worker.send_command(command)
 
                 command = {"command": "set_circle", "circle_in_steps": circle_in_steps}
+
                 self.arduino_worker.send_command(command)
                 print(circle_in_steps)
 
                 command = {"command": "set_recording_time", "recording_time": recording_time}
+
                 self.arduino_worker.send_command(command)
 
                 command = {"command": "set_force_to_find", "force_to_find": force_to_find}
+
+                self.arduino_worker.send_command(command)
+
+                command = {"command": "set_blade_width", "blade_width": blade_distance}
+
                 self.arduino_worker.send_command(command)
 
             else:
                self.set_default_motor_settings()
+
         finally:
             session.close()
 
@@ -199,16 +223,50 @@ class Scanning(QObject):
         self.base_returning = data.get("base_returning", "unknown")
         self.data_updated = True
         logger.info("Scanning process: Данные обновлены")
+        #8.03.25 фикс логики возвращения базы
         if self.base_returning:
-            self.scanning_finished.emit()
+            self.stopping_flag = True
+            # self.scanning_finished.emit()
+
+
 
     def set_default_motor_settings(self):
         defaults = DeviceConfig()
+        default_blade_distance = DiskType().blade_distance
+
+        self.recording_duration = defaults.recording_time
+
         command = {"command": "set_head_settings", "speed": defaults.head_motor_speed, "accel": defaults.head_motor_accel,
                    "MaxSpeed": defaults.head_motor_MaxSpeed}
         self.arduino_worker.send_command(command)
+
         command = {"command": "set_base_settings", "speed": defaults.base_motor_speed, "accel": defaults.base_motor_accel,
                    "MaxSpeed": defaults.base_motor_MaxSpeed}
+        self.arduino_worker.send_command(command)
+        time.sleep(
+            0.1)  # БЕЗ ЗАДЕРКИ ВЕСЬ ПАРСИНГ С АРДУИНО СЫПЕТСЯ (перенес в воркер, для подстраховки оставил и здесь)
+
+        self.arduino_worker.send_command(command)
+
+        command = {"command": "set_searching_time", "searching_time": defaults.searching_time}
+
+        self.arduino_worker.send_command(command)
+
+        command = {"command": "set_circle", "circle_in_steps": defaults.circle_in_steps}
+
+        self.arduino_worker.send_command(command)
+        print(circle_in_steps)
+
+        command = {"command": "set_recording_time", "recording_time": defaults.recording_time}
+
+        self.arduino_worker.send_command(command)
+
+        command = {"command": "set_force_to_find", "force_to_find": defaults.force_to_find}
+
+        self.arduino_worker.send_command(command)
+
+        command = {"command": "set_blade_width", "blade_width": blade_distance}
+
         self.arduino_worker.send_command(command)
 
     def start_base_motor(self):
@@ -262,7 +320,12 @@ class Scanning(QObject):
                     print(f"BLADE FORCE{self.blade_force}")
                     self.move_head_down(self.blade_force)
                 else:
-                    self.start_command()
+                    if not self.base_returning and self.stopping_flag == True:
+                        self.stopped = True
+                        self.event_queue.clear()
+                        self.scanning_finished.emit()
+                        return
+
             else:
                 if not self.preparing_for_new_blade:
                     if self.blade_found:
@@ -347,11 +410,15 @@ class Scanning(QObject):
         wav_data = audio_buffer.getvalue()
         return wav_data
 
+
     @pyqtSlot()
     def stop_scan(self):
         self.return_base()
-        self.stopped = True
-        self.event_queue.clear()
-        self.scanning_finished.emit()
+        # self.stopped = True #перенес остановку для того чтобы она корректно отрабатывала в логике
+        # self.event_queue.clear()
+        #сигнал о завершении сканирования подается в process_state после того как база подаст сигнал о том что она вернулась
+        # self.scanning_finished.emit()
+
+
 
 
