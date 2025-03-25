@@ -70,6 +70,7 @@ class MicrophoneManagerSingleton:
         Записывает аудио (float32), сохраняет в WAV (subtype) в оперативную память
         и возвращает байтовые данные.
         """
+        duration = duration / 1000
         logger.info(f"Начало записи: {duration} сек.")
         audio_data = sd.rec(
             frames=int(duration * self.sample_rate),
