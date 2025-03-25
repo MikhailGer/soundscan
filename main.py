@@ -6,6 +6,8 @@ from PyQt5.QtWidgets import QApplication
 
 from src.windows.NewMeasurementTab import *
 from src.windows.main_window import MainWindow
+from src.scan.recording import MicrophoneManagerSingleton
+
 
 # Конфигурация логирования
 logging.basicConfig(
@@ -23,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 if __name__ == "__main__":
     logger.info("Запуск приложения")  # Логирование начала выполнения программы
+    mic = MicrophoneManagerSingleton()
     os.remove("application.log")
     app = QApplication(sys.argv)
 

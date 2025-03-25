@@ -23,6 +23,8 @@ from src.arduino.arduino_worker import ArduinoWorker
 
 from src.db import Session as DatabaseSession, Session
 from src.models import DeviceConfig, DiskScan, Blade, DiskType
+from src.scan.recording import MicrophoneManagerSingleton
+
 
 
 logging.basicConfig(
@@ -348,7 +350,7 @@ class Scanning(QObject):
                         else:
                             if not self.making_ding:
                                 self.ding()
-                                wav_data = self.start_recording()
+                                wav_data = MicrophoneManagerSingleton().stripped_record(self.recording_duration)
                                 if wav_data:
                                     new_blade = Blade(
                                         disk_scan_id=self.disk_scan_id,
