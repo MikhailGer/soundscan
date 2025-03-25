@@ -166,7 +166,7 @@ class NewMeasurementTab(QWidget):
                 logger.error(f"Ошибка блокировки интерфейса: {e}")
         else:
             try:
-                enable_tab_switching(main_window)
+                self.enable_tab_switching()
             except Exception as e:
                 logger.error(f"Ошибка разблокировки интерфейса: {e}")
 
@@ -343,7 +343,7 @@ class NewMeasurementTab(QWidget):
 
     @pyqtSlot(object)
     def on_blade_downloaded(self, blade):
-        if blade.disk_scan.disk_type.id == self.current_disk_type_id:
+        if blade.disk_type_id == self.current_disk_type_id:
             self.current_disk_type_blades.append(blade)
             self.add_blade_to_table(blade)
 
@@ -355,7 +355,7 @@ class NewMeasurementTab(QWidget):
         table.setItem(row_count, 0, QTableWidgetItem(str(blade.disk_scan_id)))
         table.setItem(row_count, 1, QTableWidgetItem(str(blade.num)))
         result = "Годен" if blade.prediction else "Не годен"
-        table.setItem(row, 2, QTableWidgetItem(result))
+        table.setItem(row_count, 2, QTableWidgetItem(result))
 
         table.scrollToItem(table.item(row_count, 0))
 

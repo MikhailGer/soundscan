@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from venv import logger
 import json
 import logging
@@ -33,6 +34,14 @@ logging.basicConfig(
     ]
 )
 
+@dataclass  #дата класс для ленивой подгрузки последней найденной лопатки
+class LastBlade:
+    disk_type_id : int
+    disk_scan_id : int
+    num : int
+    prediction : bool
+
+
 class Scanning(QObject):
     scanning_finished = pyqtSignal()
     blade_downloaded = pyqtSignal(object)
@@ -40,6 +49,7 @@ class Scanning(QObject):
     def __init__(self, disk_type_id,arduino_worker):
         super().__init__()
 
+        self.lastFoundBlade = None #переменная для ленивой подгрузки последней найденной лопатки
         self.stopping_flag = False
         self.stopped = None
         self.event_queue = deque()
@@ -315,7 +325,7 @@ class Scanning(QObject):
             self.processing = False
             return
         try:
-            if not self.scan_in_progress:
+            if not self.scan_in_progress and not self.base_returning:
                 if self.head_position == "up":
                     print(f"BLADE FORCE{self.blade_force}")
                     self.move_head_down(self.blade_force)
@@ -349,12 +359,22 @@ class Scanning(QObject):
                                     with Session() as session:
                                         session.add(new_blade)
                                         session.commit()
+
+                                        #датакласс для ленивой подгрузки последней найдетной лопатки
+                                        self.lastFoundBlade = LastBlade(
+                                            disk_type_id= new_blade.disk_scan.disk_type_id,
+                                            disk_scan_id=new_blade.disk_scan_id,
+                                            num = new_blade.num,
+                                            prediction=new_blade.prediction
+                                        )
+
                                     #тут логика старта записи микрофона, добавления записи в бд и добавление звука в потокобезопасную очередь для отправки в МЛ на анализ
                                     #тут логика создания экземпляра blade c полными данными в бд (позже) (сначала ML даст ответ а затем создастся экземпляр)
                                     #для имитации работы ML пусть просто будет строчка prediction = false
 
                                     self.blade_created = False
-                                    self.blade_downloaded.emit(new_blade)
+                                    self.blade_downloaded.emit(self.lastFoundBlade)
+
                                 else:
                                     logger.error("!!!Ошибка записи файла в БД")
 
@@ -375,7 +395,7 @@ class Scanning(QObject):
         FORMAT = pyaudio.paInt16
         CHANNELS = 1
         RATE = 44100
-        RECORD_SECONDS = self.recording_duration  # Длительность записи соответствует длительности ding
+        RECORD_SECONDS = self.recording_duration  /1000 # Длительность записи соответствует длительности ding, но в мс а функция open использует секунды
 
         p = pyaudio.PyAudio()
 
@@ -384,14 +404,16 @@ class Scanning(QObject):
                         rate=RATE,
                         input=True,
                         frames_per_buffer=CHUNK)
-
         logger.info("* Начало записи")
 
         frames = []
-
-        for _ in range(0, int(RATE / CHUNK * RECORD_SECONDS)):
-            data = stream.read(CHUNK)
-            frames.append(data)
+        try:
+            for i in range(0, int(RATE / CHUNK * RECORD_SECONDS)):
+                data = stream.read(CHUNK)
+                print(f"чтение номер {i} произошло")
+                frames.append(data)
+        except:
+            logger.error("*что то пошло не так в записи")
 
         logger.info("* Конец записи")
 

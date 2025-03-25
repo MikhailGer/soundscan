@@ -50,7 +50,7 @@ class Blade(Base):
     num = Column(Integer, nullable=False)
     # scan = Column(String, nullable=False)
     scan = Column(LargeBinary, nullable=False)
-    prediction = Column(Boolean, nullable=False)
+    prediction = Column(Boolean, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.now(datetime.UTC))
 
     disk_scan = relationship("DiskScan", back_populates="blades")
