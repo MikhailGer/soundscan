@@ -335,7 +335,12 @@ class NewMeasurementTab(QWidget):
                     # Номер лопатки
                     self.main_window.nm_measurements.setItem(row, 1, QTableWidgetItem(str(blade.num)))
                     # Результат
-                    result = "Годен" if blade.prediction else "Не годен"
+                    # result = "Годен" if blade.prediction else "Не годен"
+                    result = (
+                        "Годен" if blade.prediction is True else
+                        "Не годен" if blade.prediction is False else
+                        "Не оценено"
+                    )
                     self.main_window.nm_measurements.setItem(row, 2, QTableWidgetItem(result))
                     logger.debug(f"DiskScan {blade.disk_scan_id}, Лопатка {blade.num}: {result}")
             except Exception as e:

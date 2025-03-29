@@ -24,6 +24,7 @@ from src.arduino.arduino_worker import ArduinoWorker
 from src.db import Session as DatabaseSession, Session
 from src.models import DeviceConfig, DiskScan, Blade, DiskType
 from src.scan.recording import MicrophoneManagerSingleton
+from src.scan.ml_predict import load_model_from_db
 
 
 
@@ -73,6 +74,10 @@ class Scanning(QObject):
         self.disk_scan_id = None
         self.disk_type_id = disk_type_id
         self.is_running = False
+
+        self.ml_model = None #если модель не загружена, то сканирование просто собирает дата сет без предсказаний
+        self.success_init_flag = True #флаг для отслеживания того что при инициализации сканирования все идет хорошо,
+        #если хоть где-то при запуске что-то пошло не так, флаг переводится в False и сканирование дропается на старте
 
         # Создание объекта для работы с Arduino
         self.arduino_worker = arduino_worker
@@ -130,18 +135,32 @@ class Scanning(QObject):
                 if disk_type:
                     self.blade_force = disk_type.blade_force
                 else:
-                    logger.error(f"DiskType с id {self.disk_type_id} не найден.")
+                    logger.error(f"DiskType с id {self.disk_type_id} не найден. Остановка сканирования:")
+                    self.success_init_flag = False
             except Exception as e:
                 logger.error("Ошибка создания экземпляра сканирования или получения blade_force: %s", e, exc_info=True)
+                self.success_init_flag = False
             finally:
                 session.close()
-            self.arduino_worker.data_received.connect(self.on_data_received)  # Подключаем обработчик данных
-            self.get_motors_settings_from_db()
-            self.start_base_motor()
-            self.status()
-            self.start_command() #здесь начинаем сканирование
+
+            #здесь пробуем подгрузить модель для диска если она есть:
+            self.ml_model = load_model_from_db(self.disk_type_id)
+
+            if self.success_init_flag:
+                self.arduino_worker.data_received.connect(self.on_data_received)  # Подключаем обработчик данных
+                self.get_motors_settings_from_db()
+                self.start_base_motor()
+                self.status()
+                self.start_command() #здесь начинаем сканирование
+            else:
+                logger.error("Не удалось запустить сканирование, остановка процесса:")
+                self.scanning_finished.emit()
+                return
         else:
             logger.error("Ошибка старта сканирования: устройство не подключено")
+            self.scanning_finished.emit()
+            return
+
 
     def process_next_event(self):
         if self.stopped:
@@ -352,33 +371,37 @@ class Scanning(QObject):
                                 self.ding()
                                 wav_data = MicrophoneManagerSingleton().stripped_record(self.recording_duration)
                                 if wav_data:
-                                    new_blade = Blade(
-                                        disk_scan_id=self.disk_scan_id,
-                                        num=self.num,
-                                        scan=wav_data,
-                                        prediction=False  # Для имитации работы ML
-                                    )
-                                    with Session() as session:
-                                        session.add(new_blade)
-                                        session.commit()
-
-                                        #датакласс для ленивой подгрузки последней найдетной лопатки
-                                        self.lastFoundBlade = LastBlade(
-                                            disk_type_id= new_blade.disk_scan.disk_type_id,
-                                            disk_scan_id=new_blade.disk_scan_id,
-                                            num = new_blade.num,
-                                            prediction=new_blade.prediction
+                                    # тут логика старта записи микрофона, добавления записи в бд и добавление звука в потокобезопасную очередь для отправки в МЛ на анализ
+                                    # тут логика создания экземпляра blade c полными данными в бд (позже) (сначала ML даст ответ а затем создастся экземпляр)
+                                    # для имитации работы ML пусть просто будет строчка prediction = false
+                                    if self.ml_model is not None:
+                                        logger.info("Логика при рабочем мл еще в разработке")
+                                        return
+                                    else:
+                                        new_blade = Blade(
+                                            disk_scan_id=self.disk_scan_id,
+                                            num=self.num,
+                                            scan=wav_data,
+                                            prediction=None  #Нужно протестировать можно ли записывать None если поле в орм Nulable
                                         )
+                                        with Session() as session:
+                                            session.add(new_blade)
+                                            session.commit()
 
-                                    #тут логика старта записи микрофона, добавления записи в бд и добавление звука в потокобезопасную очередь для отправки в МЛ на анализ
-                                    #тут логика создания экземпляра blade c полными данными в бд (позже) (сначала ML даст ответ а затем создастся экземпляр)
-                                    #для имитации работы ML пусть просто будет строчка prediction = false
+                                            #датакласс для ленивой подгрузки последней найдетной лопатки
+                                            self.lastFoundBlade = LastBlade(
+                                                disk_type_id= new_blade.disk_scan.disk_type_id,
+                                                disk_scan_id=new_blade.disk_scan_id,
+                                                num = new_blade.num,
+                                                prediction=new_blade.prediction
+                                            )
 
-                                    self.blade_created = False
-                                    self.blade_downloaded.emit(self.lastFoundBlade)
+                                        self.blade_created = False
+                                        self.blade_downloaded.emit(self.lastFoundBlade)
 
                                 else:
                                     logger.error("!!!Ошибка записи файла в БД")
+
 
             if self.stopped:
                 self.processing = False

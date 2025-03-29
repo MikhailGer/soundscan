@@ -163,23 +163,32 @@ class ModelTrainingTab(QWidget):
 
                 for row, blade in enumerate(blades):
                     self.main_window.mt_blade_results.setItem(row, 0, QTableWidgetItem(str(blade.num)))
-                    prediction = "Нет дефекта" if blade.prediction else "Дефект"
+                    prediction = (
+                        "Годен" if blade.prediction is True else
+                        "Не годен" if blade.prediction is False else
+                        "Не оценено"
+                    )
                     self.main_window.mt_blade_results.setItem(row, 1, QTableWidgetItem(prediction))
                     logger.info(f"Лопатка {blade.num}:, Дефект: {prediction}")
 
                     btn_no_defect = QPushButton("Нет дефекта")
-                    btn_no_defect.clicked.connect(lambda _, b=blade: self.set_blade_defect_status(b.id,1))
+                    btn_no_defect.clicked.connect(lambda _, b=blade: self.set_blade_defect_status(b.id,True))
                     btn_no_defect.setStyleSheet("background-color: lightgreen;")
 
                     btn_defect = QPushButton("Дефект")
-                    btn_defect.clicked.connect(lambda _, b=blade: self.set_blade_defect_status(b.id, 0))
+                    btn_defect.clicked.connect(lambda _, b=blade: self.set_blade_defect_status(b.id, False))
                     btn_defect.setStyleSheet("background-color: red; color: white;")
+
+                    btn_no_data = QPushButton("Нет данных")
+                    btn_no_data.clicked.connect(lambda _, b=blade: self.set_blade_defect_status(b.id, None))
+
 
 
                     widget = QWidget()
                     layout = QHBoxLayout()
                     layout.addWidget(btn_defect)
                     layout.addWidget(btn_no_defect)
+                    layout.addWidget(btn_no_data)
                     layout.setContentsMargins(0,0,0,0)
                     widget.setLayout(layout)
 
@@ -211,3 +220,4 @@ class ModelTrainingTab(QWidget):
             logger.error(f"Ошибка при изменении статуса дефекта лопатки ID {Blade}: {e}")
         finally:
             session.close()
+
