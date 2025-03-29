@@ -181,6 +181,8 @@ class ModelTrainingTab(QWidget):
 
                     btn_no_data = QPushButton("Нет данных")
                     btn_no_data.clicked.connect(lambda _, b=blade: self.set_blade_defect_status(b.id, None))
+                    btn_no_data.setStyleSheet("background-color: white; color: black;")
+
 
 
 
