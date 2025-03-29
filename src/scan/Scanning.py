@@ -5,6 +5,7 @@ import logging
 import sys
 from codeop import compile_command
 from email.policy import default
+import numpy as np
 
 from datetime import datetime
 import time
@@ -24,9 +25,7 @@ from src.arduino.arduino_worker import ArduinoWorker
 from src.db import Session as DatabaseSession, Session
 from src.models import DeviceConfig, DiskScan, Blade, DiskType
 from src.scan.recording import MicrophoneManagerSingleton
-from src.scan.ml_predict import load_model_from_db
-
-
+from src.scan.ml_predict import load_model_from_db, extract_features
 
 logging.basicConfig(
     level=logging.DEBUG,  # Установить уровень логирования
@@ -375,33 +374,40 @@ class Scanning(QObject):
                                 self.ding()
                                 wav_data = MicrophoneManagerSingleton().stripped_record(self.recording_duration)
                                 if wav_data:
-                                    # тут логика старта записи микрофона, добавления записи в бд и добавление звука в потокобезопасную очередь для отправки в МЛ на анализ
-                                    # тут логика создания экземпляра blade c полными данными в бд (позже) (сначала ML даст ответ а затем создастся экземпляр)
-                                    # для имитации работы ML пусть просто будет строчка prediction = false
                                     if self.ml_model is not None:
-                                        logger.info("Логика при рабочем мл еще в разработке")
-                                        return
+                                        try:
+                                            logger.info("Запуск предсказания по лопатке")
+                                            features =extract_features(wav_data)
+                                            input_data = np.array([features], dtype=np.float32)
+                                            raw_prediction = self.ml_model.predict(input_data)[0][0]
+                                            if raw_prediction > 0.5:
+                                                current_blade_prediction = True
+                                            else:
+                                                current_blade_prediction = False
+                                        except Exception as e:
+                                            logger.error(f"Ошибка в предсказании статуса лопатки: {e}")
                                     else:
-                                        new_blade = Blade(
-                                            disk_scan_id=self.disk_scan_id,
-                                            num=self.num,
-                                            scan=wav_data,
-                                            prediction=None  #Нужно протестировать можно ли записывать None если поле в орм Nulable
+                                        current_blade_prediction = None
+                                    new_blade = Blade(
+                                        disk_scan_id=self.disk_scan_id,
+                                        num=self.num,
+                                        scan=wav_data,
+                                        prediction=current_blade_prediction  #Нужно протестировать можно ли записывать None если поле в орм Nulable
+                                    )
+                                    with Session() as session:
+                                        session.add(new_blade)
+                                        session.commit()
+
+                                        #датакласс для ленивой подгрузки последней найдетной лопатки
+                                        self.lastFoundBlade = LastBlade(
+                                            disk_type_id= new_blade.disk_scan.disk_type_id,
+                                            disk_scan_id=new_blade.disk_scan_id,
+                                            num = new_blade.num,
+                                            prediction=new_blade.prediction
                                         )
-                                        with Session() as session:
-                                            session.add(new_blade)
-                                            session.commit()
 
-                                            #датакласс для ленивой подгрузки последней найдетной лопатки
-                                            self.lastFoundBlade = LastBlade(
-                                                disk_type_id= new_blade.disk_scan.disk_type_id,
-                                                disk_scan_id=new_blade.disk_scan_id,
-                                                num = new_blade.num,
-                                                prediction=new_blade.prediction
-                                            )
-
-                                        self.blade_created = False
-                                        self.blade_downloaded.emit(self.lastFoundBlade)
+                                    self.blade_created = False
+                                    self.blade_downloaded.emit(self.lastFoundBlade)
 
                                 else:
                                     logger.error("!!!Ошибка записи файла в БД")

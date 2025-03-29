@@ -9,6 +9,8 @@ import base64
 import numpy as np
 
 from keras.api.optimizers import SGD
+from keras.src.metrics.accuracy_metrics import accuracy
+
 from src.db import Session
 from src.models import DiskTypeModel
 
@@ -100,10 +102,14 @@ def build_model(input_dim, output_dim=1):
     model = keras.Sequential()
     model.add(keras.layers.Dense(16, input_dim=input_dim, activation='relu'))
     model.add(keras.layers.Dense(32, activation='tanh'))
-    model.add(keras.layers.Dense(output_dim, activation='tanh'))
+    # model.add(keras.layers.Dense(output_dim, activation='tanh'))
+    #Пробую изменить выходной слой чтобы на выходе получать бинарную классификацию для однозначной оценки True или False
+    model.add(keras.layers.Dense(1, activation='sigmoid'))
+
 
     optimizer = SGD(learning_rate=0.001, momentum=0.5, nesterov=True)
-    model.compile(loss='mean_squared_error', optimizer=optimizer, metrics=['accuracy'])
+    # model.compile(loss='mean_squared_error', optimizer=optimizer, metrics=['accuracy'])
+    model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=['accuracy'])
 
     return model
 

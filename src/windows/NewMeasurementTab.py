@@ -179,7 +179,7 @@ class NewMeasurementTab(QWidget):
 
     def enable_tab_switching(self):
         self.main_window.tab_switching_enabled = True
-        self.main_window.tabWidget.keyPressEvent = super(QTabWidget, main_window.tabWidget).keyPressEvent
+        self.main_window.tabWidget.keyPressEvent = super(QTabWidget, self.main_window.tabWidget).keyPressEvent
         logger.info("Переключение вкладок включено")
 
     def start_control(self):
