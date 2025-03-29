@@ -44,6 +44,7 @@
 ```bash
 python main.py
 ```
+5. **Установите скрипт на вашу плату Arduino из папки scetch_soundscan и соберите установку(схема будет позже).**
 
 Дополнительные скрипты:
 - `arduino_service.py` — управление Arduino.
