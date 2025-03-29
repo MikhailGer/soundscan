@@ -63,6 +63,7 @@ class DiskTypeModel(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     disk_type_id = Column(Integer, ForeignKey(f'{settings.DB_SCHEMA}.disk_type.id', ondelete='CASCADE'), nullable=False)
     model = Column(Text, nullable=False)
+    is_current = Column(Boolean, nullable=False)
     created_at = Column(DateTime, default=datetime.datetime.now(datetime.UTC))
 
     disk_type = relationship("DiskType", back_populates="models")

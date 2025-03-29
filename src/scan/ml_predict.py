@@ -24,21 +24,33 @@ def load_model_from_db(disk_type_id):
     """
     session = Session()
     try:
-        # Ищем последнюю модель (при желании можно искать по дате и т.д.)
+        #ищем установленную модель
         model_row = session.query(DiskTypeModel) \
-            .filter_by(disk_type_id=disk_type_id) \
-            .order_by(DiskTypeModel.created_at.desc()) \
+            .filter(DiskTypeModel.disk_type_id == disk_type_id,DiskTypeModel.is_current == True) \
             .first()
 
         if not model_row:
-            logger.warning(f"Нет сохранённых моделей для disk_type_id={disk_type_id}")
-            return None
+            # Ищем последнюю модель (при желании можно искать по дате и т.д.)
+            logger.warning(f"Нет установленной модели для disk_type_id={disk_type_id}")
+            return
+
+            #ниже закоментирована возможность искать дополнительно просто последнюю модель
+
+            # logger.warning(f"Попытка найти последнюю модель для disk_type_id={disk_type_id}")
+            # model_row = session.query(DiskTypeModel) \
+            #     .filter_by(disk_type_id=disk_type_id) \
+            #     .order_by(DiskTypeModel.created_at.desc()) \
+            #     .first()
+            # if not model_row:
+            #     logger.warning(f"Нет моделей для disk_type_id={disk_type_id}")
+            #     return
 
         encoded_model = model_row.model
         model_bytes = base64.b64decode(encoded_model)
         model_buffer = io.BytesIO(model_bytes)
         loaded_model = keras.models.load_model(model_buffer)
         return loaded_model
+
     except Exception as e:
         logger.error(f"Ошибка при загрузке модели из БД: {e}", exc_info=True)
         return None

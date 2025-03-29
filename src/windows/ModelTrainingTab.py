@@ -58,6 +58,7 @@ class ModelTrainingTab(QWidget):
         """
         method = self.main_window.mt_disk_type.currentIndexChanged.connect if connect else self.main_window.mt_disk_type.currentIndexChanged.disconnect
         method(self.update_measurements)
+        method(self.update_avaliable_models)
         method = self.main_window.mt_measurements.itemSelectionChanged.connect if connect else self.main_window.mt_measurements.itemSelectionChanged.connect
         method(self.update_blade_results)
         method = self.main_window.mt_save.clicked.connect if connect else self.main_window.mt_save.clicked.disconnect
@@ -151,7 +152,7 @@ class ModelTrainingTab(QWidget):
         if selected_disk_type_id:
             session = Session()
             try:
-                disk_scans = session.query(DiskScan).order_by(DiskScan.id.asc()).all()
+                disk_scans = session.query(DiskScan).filter_by(disk_type_id=selected_disk_type_id).order_by(DiskScan.id.asc()).all()
                 logger.info(f"Загружено {len(disk_scans)} измерений для типа диска ID {selected_disk_type_id}")
 
                 # Очищаем ListWidget
@@ -208,6 +209,102 @@ class ModelTrainingTab(QWidget):
         finally:
             session.close()
 
+    def update_avaliable_models(self):
+        selected_disk_type_id = self.main_window.mt_disk_type.currentData()  # Получаем ID выбранного типа диска
+        logger.info(f"Обновление моделей для типа диска с ID {selected_disk_type_id}")
+
+        if selected_disk_type_id:
+            session = Session()
+            try:
+                disk_models = session.query(DiskTypeModel).filter_by(disk_type_id=selected_disk_type_id).order_by(DiskTypeModel.id.asc()).all()
+                logger.info(f"Загружено {len(disk_models)} измерений для типа диска ID {selected_disk_type_id}")
+
+                # Очищаем ListWidget
+                self.main_window.mt_avaliable_models.clear()
+
+                # Заполняем ListWidget новыми измерениями и добавляем чекбоксы
+                for model in disk_models:
+                    item = QListWidgetItem(self.main_window.mt_avaliable_models)
+                    item.setText(f"ID: {model.id} created_at:{model.created_at}")
+                    item.setData(Qt.UserRole, model.id)  # Сохраняем ID измерения
+
+                    # Создаем виджет для чекбокса
+                    widget = QWidget()
+                    checkbox = QCheckBox()
+                    checkbox.setChecked(model.is_current)  # Устанавливаем текущее состояние is_training
+                    checkbox.setStyleSheet("""
+                                QCheckBox::indicator {
+                                    width: 25px;
+                                    height: 25px;
+                                }
+                                QCheckBox {
+                                    font-size: 18px;
+                                }
+                            """)
+                    delete_button = QPushButton("Удалить")
+                    delete_button.setStyleSheet("background-color: red; color: white;")
+                    delete_button.clicked.connect(partial(self.delete_model, model.id))
+                    # Создаем layout для размещения чекбокса справа
+                    layout = QHBoxLayout(widget)
+                    layout.addWidget(checkbox)
+                    layout.addWidget(delete_button)
+                    layout.setAlignment(Qt.AlignRight)  # Перемещаем чекбокс вправо
+                    layout.setContentsMargins(0, 0, 50, 0)  # отступы
+                    widget.setLayout(layout)
+
+                    self.main_window.mt_avaliable_models.setItemWidget(item, widget)
+                    checkbox.stateChanged.connect(partial(self.change_is_current_state, model.id))
+            except Exception as e:
+                logger.error(f"Ошибка при обновлении измерений для типа диска ID {selected_disk_type_id}: {e}")
+            finally:
+                session.close()
+
+    def delete_model(self, model_id):
+        reply = QMessageBox.question(
+            self,
+             "Удалить модель",
+            "Вы уверены, что хотите удалить эту обученную модель?",
+             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+             QMessageBox.StandardButton.No
+             )
+        if reply == QMessageBox.Yes:
+            session = Session()
+            try:
+                model = session.query(DiskTypeModel).get(model_id)
+                if model:
+                    session.delete(model)
+                    session.commit()
+                    logger.info(f"Модель {model_id} была удалена из базы данных.")
+                else:
+                    logger.info(f"Модель {model_id} не найдена.")
+            except Exception as e:
+                logger.error(f"Ошибка при удалении модели ID {model.id} из БД: {e}")
+
+            finally:
+                session.close()
+        self.update_avaliable_models()
+
+    def change_is_current_state(self, dt_model_id, state):
+        logger.info(f"Изменение состояния is_current для модели ID {dt_model_id} на {state}")
+        session = Session()
+        try:
+            model = session.query(DiskTypeModel).get(dt_model_id)
+            if model:
+                if state == Qt.Checked:
+                    session.query(DiskTypeModel).filter (DiskTypeModel.disk_type_id == model.disk_type_id).update({DiskTypeModel.is_current: False})
+                    model.is_current = True
+                    # session.commit()
+                    logger.info(f"Состояние is_current для модели ID {dt_model_id} обновлено на {model.is_current}")
+                else:
+                    model.is_current = False
+                    logger.info(f"Состояние is_current для модели ID {dt_model_id} обновлено на {model.is_current}")
+                session.commit()
+        except Exception as e:
+
+            logger.error(f"Ошибка при изменении состояния is_current для модели ID {dt_model_id}: {e}")
+        finally:
+            session.close()
+            self.update_avaliable_models()
 
     def update_blade_results(self):
         """
@@ -333,8 +430,7 @@ class ModelTrainingTab(QWidget):
         print(history.history)
         self.set_controls_enabled(True)
         self.show_info_message(f"Модель обучена: {history.history}")
-
-
+        self.update_avaliable_models()
 
     def save_model_to_db(self, model):
         selected_item = self.main_window.mt_disk_type.currentText()
@@ -372,4 +468,5 @@ class ModelTrainingTab(QWidget):
         msg.setText(message)
         msg.setWindowTitle("Успех")
         msg.exec_()
+
 

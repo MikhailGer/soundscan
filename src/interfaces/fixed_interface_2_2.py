@@ -395,15 +395,31 @@ class Ui_SoundScan(object):
         self.mt_disk_type.setObjectName("mt_disk_type")
         self.verticalLayout_7.addWidget(self.mt_disk_type)
         self.verticalLayout_8.addLayout(self.verticalLayout_7)
+
         self.verticalLayout_6 = QtWidgets.QVBoxLayout()
         self.verticalLayout_6.setObjectName("verticalLayout_6")
+
+        self.verticalLayout_avaliable_models = QtWidgets.QVBoxLayout()
+        self.verticalLayout_avaliable_models.setObjectName("verticalLayout_avaliable_models")
+
         self.mt_label_measurements = QtWidgets.QLabel(self.model_training)
         self.mt_label_measurements.setObjectName("mt_label_measurements")
+
+        self.mt_label_avaliable_models = QtWidgets.QLabel(self.model_training)
+        self.mt_label_avaliable_models.setObjectName("mt_label_avaliable_models")
+
+        self.verticalLayout_avaliable_models.addWidget(self.mt_label_avaliable_models)
         self.verticalLayout_6.addWidget(self.mt_label_measurements)
         self.mt_measurements = QtWidgets.QListWidget(self.model_training)
         self.mt_measurements.setObjectName("mt_measurements")
+        self.mt_avaliable_models = QtWidgets.QListWidget(self.model_training)
+        self.mt_avaliable_models.setObjectName("mt_avaliable_models")
+        self.verticalLayout_avaliable_models.addWidget(self.mt_avaliable_models)
         self.verticalLayout_6.addWidget(self.mt_measurements)
+
         self.verticalLayout_8.addLayout(self.verticalLayout_6)
+        self.verticalLayout_8.addLayout(self.verticalLayout_avaliable_models)
+
         self.horizontalLayout_4.addLayout(self.verticalLayout_8)
         self.verticalLayout_5 = QtWidgets.QVBoxLayout()
         self.verticalLayout_5.setObjectName("verticalLayout_5")
@@ -1495,6 +1511,7 @@ class Ui_SoundScan(object):
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.new_measurement), _translate("SoundScan", "Новое измерение"))
         self.mt_label_disk_type.setText(_translate("SoundScan", "Тип диска (выберите тип диска)"))
         self.mt_label_measurements.setText(_translate("SoundScan", "История измерений по типу диска (выбреите измерение)"))
+        self.mt_label_avaliable_models.setText(_translate("Soundscan", "Доступные ML модели(выбрать 1 текущую):"))
         self.mt_label_blade_results_2.setText(_translate("SoundScan", "Результаты контроля лопаток диска"))
         self.mt_blade_results.setSortingEnabled(True)
         self.mt_save.setText(_translate("SoundScan", "переобучить модель для выбранного типа диска"))
@@ -1532,3 +1549,4 @@ class Ui_SoundScan(object):
         self.dc_save.setText(_translate("SoundScan", "сохранить изменения"))
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.devise_config), _translate("SoundScan", "Параметры установки"))
         self.toolBar.setWindowTitle(_translate("SoundScan", "toolBar"))
+
