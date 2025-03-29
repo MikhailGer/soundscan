@@ -145,6 +145,10 @@ class Scanning(QObject):
 
             #здесь пробуем подгрузить модель для диска если она есть:
             self.ml_model = load_model_from_db(self.disk_type_id)
+            if self.ml_model is not None:
+                logger.info(f"для disk_type_id {self.disk_type_id} была загружена модель Keras")
+            else:
+                logger.info(f"Для disk_type_id {self.disk_type_id} нет ML модели, лопатки не будут оцениваться")
 
             if self.success_init_flag:
                 self.arduino_worker.data_received.connect(self.on_data_received)  # Подключаем обработчик данных
