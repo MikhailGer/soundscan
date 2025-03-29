@@ -127,6 +127,7 @@ class NewMeasurementTab(QWidget):
     def start_tab(self):
         logger.info("вкладка 'Новое измерение': отрисовка")
         self.load_disk_types_to_combobox()
+        self.set_controls_enabled(True)
 
     def load_disk_types_to_combobox(self):
         """
@@ -158,6 +159,8 @@ class NewMeasurementTab(QWidget):
         self.main_window.nm_serial_scan.setEnabled(enabled)
         self.main_window.nm_disk_type.setEnabled(enabled)
         self.main_window.nm_measurements.setEnabled(enabled)
+        print("кнопка stop is ")
+        print(not enabled)
         self.main_window.nm_stop.setEnabled(not enabled)
         if not enabled:
             try:
@@ -189,7 +192,6 @@ class NewMeasurementTab(QWidget):
         if not self.main_window.connection_established:
             logger.error("Не подключена плата.")
             QMessageBox.warning(self,"Ошибка", "Не подключена плата")
-
             return
         logger.info("Начало процесса контроля")
         selected_item = self.main_window.nm_disk_type.currentText()
