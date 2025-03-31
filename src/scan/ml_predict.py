@@ -11,7 +11,6 @@ import tempfile
 
 from keras.api.optimizers import SGD
 from keras.src.metrics.accuracy_metrics import accuracy
-from optree.version import suffix
 
 from src.db import Session
 from src.models import DiskTypeModel, DiskType, DiskScan, Blade
