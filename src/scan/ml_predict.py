@@ -7,12 +7,14 @@ import soundfile as sf
 import scipy.signal as sg
 import base64
 import numpy as np
+import tempfile
 
 from keras.api.optimizers import SGD
 from keras.src.metrics.accuracy_metrics import accuracy
+from optree.version import suffix
 
 from src.db import Session
-from src.models import DiskTypeModel
+from src.models import DiskTypeModel, DiskType, DiskScan, Blade
 
 logger = logging.getLogger(__name__)
 
@@ -47,8 +49,14 @@ def load_model_from_db(disk_type_id):
 
         encoded_model = model_row.model
         model_bytes = base64.b64decode(encoded_model)
-        model_buffer = io.BytesIO(model_bytes)
-        loaded_model = keras.models.load_model(model_buffer)
+        with tempfile.NamedTemporaryFile(suffix=".keras", delete=True) as tmp_file:
+            tmp_file.write(model_bytes)
+            tmp_file.flush()
+            loaded_model = keras.models.load_model(tmp_file.name)
+
+        # model_buffer = io.BytesIO(model_bytes)
+        # loaded_model = keras.models.load_model(model_buffer)
+
         return loaded_model
 
     except Exception as e:
@@ -148,4 +156,61 @@ def calc_correlation(y_true, y_pred):
     if denominator == 0:
         return 0
     return sum1 / denominator
+
+def get_training_dataset(selected_item):
+    session = Session()
+    X, y = [], []
+
+    try:
+        disk_type = session.query(DiskType).filter_by(name=selected_item).first()
+        training_scans = session.query(DiskScan).filter(DiskScan.disk_type_id == disk_type.id, DiskScan.is_training==True).all()
+        if training_scans:
+
+            for scan in training_scans:
+                blades = session.query(Blade).filter_by(disk_scan_id=scan.id).all()
+            for blade in blades:
+                if blade.prediction is None:
+                    continue
+                wav_data = blade.scan
+                features = extract_features(wav_data)
+                X.append(features)
+                y.append(1 if blade.prediction is True else 0)
+        else:
+            logger.error("Ошибка: не выбраны данные")
+            return False
+
+    finally:
+        session.close()
+
+    return np.array(X, dtype=np.float32), np.array(y, dtype=np.float32)
+
+
+def save_model_to_db(model, selected_item):
+    session = Session()
+    if selected_item:
+        try:
+            disk_type = session.query(DiskType).filter_by(name=selected_item).first()
+
+            with tempfile.NamedTemporaryFile(suffix=".keras", delete=True) as tmp_file:
+                model.save(tmp_file.name)
+                tmp_file.seek(0)
+                model_bytes = tmp_file.read()
+
+            encoded_model = base64.b64encode(model_bytes).decode('utf-8')
+            new_model = DiskTypeModel(
+                disk_type_id=disk_type.id,
+                model=encoded_model,
+                is_current=False
+            )
+            session.add(new_model)
+            session.commit()
+            logger.info("Модель сохранена в базу данных")
+        finally:
+            session.close()
+
+    else:
+        logger.error("Ошибка, не найден disk_type")
+        return False
+
+    return True
 

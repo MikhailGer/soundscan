@@ -1,10 +1,7 @@
 import logging
-import tempfile
 
 import numpy as np
 import io
-import base64
-import h5py
 from functools import partial
 from xml.sax.handler import feature_external_ges
 
@@ -19,7 +16,7 @@ from tensorflow.python.keras.utils.version_utils import training
 
 from src.db import Session
 from src.models import DiskType, DiskScan, Blade, DiskTypeModel
-from src.scan.ml_predict import extract_features, build_model
+from src.scan.ml_predict import extract_features, build_model, get_training_dataset, save_model_to_db
 
 # Настройка логирования
 logger = logging.getLogger(__name__)
@@ -388,38 +385,39 @@ class ModelTrainingTab(QWidget):
         finally:
             session.close()
 
-    def get_training_dataset(self, selected_item):
-        session = Session()
-        X, y = [], []
-
-        try:
-            disk_type = session.query(DiskType).filter_by(name=selected_item).first()
-            training_scans = session.query(DiskScan).filter(DiskScan.disk_type_id == disk_type.id, DiskScan.is_training==True).all()
-            if training_scans:
-
-                for scan in training_scans:
-                    blades = session.query(Blade).filter_by(disk_scan_id=scan.id).all()
-                for blade in blades:
-                    if blade.prediction is None:
-                        continue
-                    wav_data = blade.scan
-                    features = extract_features(wav_data)
-                    X.append(features)
-                    y.append(1 if blade.prediction is True else 0)
-            else:
-                logger.error("Ошибка: не выбраны данные")
-                return False
-
-        finally:
-            session.close()
-
-        return np.array(X, dtype=np.float32), np.array(y, dtype=np.float32)
+    #перенес в ml_predict
+    # def get_training_dataset(self, selected_item):
+    #     session = Session()
+    #     X, y = [], []
+    #
+    #     try:
+    #         disk_type = session.query(DiskType).filter_by(name=selected_item).first()
+    #         training_scans = session.query(DiskScan).filter(DiskScan.disk_type_id == disk_type.id, DiskScan.is_training==True).all()
+    #         if training_scans:
+    #
+    #             for scan in training_scans:
+    #                 blades = session.query(Blade).filter_by(disk_scan_id=scan.id).all()
+    #             for blade in blades:
+    #                 if blade.prediction is None:
+    #                     continue
+    #                 wav_data = blade.scan
+    #                 features = extract_features(wav_data)
+    #                 X.append(features)
+    #                 y.append(1 if blade.prediction is True else 0)
+    #         else:
+    #             logger.error("Ошибка: не выбраны данные")
+    #             return False
+    #
+    #     finally:
+    #         session.close()
+    #
+    #     return np.array(X, dtype=np.float32), np.array(y, dtype=np.float32)
 
     def train_model(self):
         selected_item = self.main_window.mt_disk_type.currentText()
         self.set_controls_enabled(False)
         QApplication.processEvents()
-        data = self.get_training_dataset(selected_item)
+        data = get_training_dataset(selected_item)
         if not data:
             QMessageBox.warning(self, "Ошибка", "Обучение не совершено, нет данных")
             logger.error("Ошибка: Обучение отменено")
@@ -429,37 +427,41 @@ class ModelTrainingTab(QWidget):
             X, y = data
         model = build_model(input_dim=5)
         history = model.fit(X,y, epochs=15, batch_size=8)
-        self.save_model_to_db(model, selected_item)
+        if save_model_to_db(model, selected_item):
+            logger.info("Успешно сохранено")
+        else:
+            logger.error("Ошибка. Не удалось сохранить модель")
+
         print(history.history)
         self.set_controls_enabled(True)
         self.show_info_message(f"Модель обучена: {history.history}")
         self.update_avaliable_models()
 
-    def save_model_to_db(self, model, selected_item):
-        session = Session()
-        if selected_item:
-            try:
-                disk_type = session.query(DiskType).filter_by(name=selected_item).first()
-
-                with tempfile.NamedTemporaryFile(suffix=".keras", delete=True) as tmp_file:
-                    model.save(tmp_file.name)
-                    tmp_file.seek(0)
-                    model_bytes = tmp_file.read()
-
-                encoded_model = base64.b64encode(model_bytes).decode('utf-8')
-                new_model = DiskTypeModel(
-                    disk_type_id=disk_type.id,
-                    model=encoded_model,
-                    is_current=False
-                )
-                session.add(new_model)
-                session.commit()
-                logger.info("Модель сохранена в базу данных")
-            finally:
-                session.close()
-
-        else:
-            logger.error("Ошибка, не найден disk_type")
+    # def save_model_to_db(self, model, selected_item):
+    #     session = Session()
+    #     if selected_item:
+    #         try:
+    #             disk_type = session.query(DiskType).filter_by(name=selected_item).first()
+    #
+    #             with tempfile.NamedTemporaryFile(suffix=".keras", delete=True) as tmp_file:
+    #                 model.save(tmp_file.name)
+    #                 tmp_file.seek(0)
+    #                 model_bytes = tmp_file.read()
+    #
+    #             encoded_model = base64.b64encode(model_bytes).decode('utf-8')
+    #             new_model = DiskTypeModel(
+    #                 disk_type_id=disk_type.id,
+    #                 model=encoded_model,
+    #                 is_current=False
+    #             )
+    #             session.add(new_model)
+    #             session.commit()
+    #             logger.info("Модель сохранена в базу данных")
+    #         finally:
+    #             session.close()
+    #
+    #     else:
+    #         logger.error("Ошибка, не найден disk_type")
 
     def show_info_message(self, message):
         """
