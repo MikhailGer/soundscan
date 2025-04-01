@@ -17,6 +17,8 @@ import wave
 import pyaudio
 
 from PyQt5.QtCore import QObject, pyqtSlot, pyqtSignal
+from tensorflow.python.tools.saved_model_cli import command_required_flags
+
 # from PyQt5.QtSql import record
 
 from src.arduino.arduino_controller import ArduinoController
@@ -154,6 +156,7 @@ class Scanning(QObject):
                 self.get_motors_settings_from_db()
                 self.start_base_motor()
                 self.status()
+                self.set_pressure(self.blade_force) #устанавливаем силу давления на плату
                 self.start_command() #здесь начинаем сканирование
             else:
                 logger.error("Не удалось запустить сканирование, остановка процесса:")
@@ -344,6 +347,12 @@ class Scanning(QObject):
         self.data_updated = False
         logger.info("Scanning proccess: Запрос на обновление данных")
 
+    def set_pressure(self, blade_force):
+        logger.info("Scanning: выполняется команда set_pressure")
+        command = {"command": "set_pressure", "pressure": blade_force}
+        self.arduino_worker.send_command(command)
+
+
     def process_state(self):
         if self.stopped:
             self.processing = False
@@ -359,6 +368,7 @@ class Scanning(QObject):
                         self.event_queue.clear()
                         self.scanning_finished.emit()
                         return
+
 
             else:
                 if not self.preparing_for_new_blade:

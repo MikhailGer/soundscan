@@ -14,7 +14,7 @@ GStepper<STEPPER2WIRE> stepper_head(200, 8, 9, 10); // Мотор головки
 
 //переменные, связанные с постоянными параметрами установки
 static long prepearing_time = 3000; // время в мс, которое требуется микрофону для записи колебаний звука после "дзынь", после этого времени начнется поиск новой лопатки
-static int pressure_to_find_blade = 50; //постоянное значение, если показания тензодатчика больше этого значения, значит тезодатчик уперся в лопатку(лопатка найдена)
+static int pressure_to_find_blade = 15; //постоянное значение, если показания тензодатчика больше этого значения, значит тезодатчик уперся в лопатку(лопатка найдена)
 static long circle_in_steps = 14400; //полная окружность установки в шагах
 static long search_interval = 20000; //интревал времени в мc. Если в течении этого времени новая лопатка не была найдена, сканирование завершается(возоврат к старту)
 static int reserve_value = 400; //значение запаса не доходя до которого база вернется обратно в случае прохождения полного круга 
@@ -26,8 +26,8 @@ unsigned long wait_recording_start_time = 0;
 bool blade_found = false; //переменная состояние поиска лопатки
 bool Is_motor_on = false; // Управление двигателем базы
 bool head_position = false; // false = поднята, true = опущена
-int TenzoUpdateRate = 10;  // Частота обновления тензодатчика (мс)
-int pressure_threshold = 0; // Давление, требуемое для остановки головки
+int TenzoUpdateRate = 1;  // Частота обновления тензодатчика (мс)
+int pressure_threshold = 500; // Давление, требуемое для остановки головки
 float currentTenzo = 0;    // Текущее значение тензодатчика
 unsigned long lastUpdateTime = 0;
 
@@ -129,6 +129,10 @@ void setup() {
         blade_found = true;
         base_run_flag = false;
         sendStatus();
+        stepper_base.stop();
+        stepper_base.setSpeed(10);
+        stepper_base.setAcceleration(10); 
+        stepper_base.setMaxSpeed(10);
         // Дополнительные действия при нахождении лезвия
       }
       
@@ -143,6 +147,9 @@ void setup() {
         base_run_flag = false;
         pulling_blade = false;
         sendStatus();
+        stepper_base.setSpeed(speed_base);
+        stepper_base.setAcceleration(accel_base); 
+        stepper_base.setMaxSpeed(MaxSpeed_base);
           }
         
         }
@@ -356,6 +363,10 @@ void executeCommand(const JsonDocument& doc) {
    else if(strcmp(command, "set_blade_width") == 0){
     blade_width = doc["blade_width"].as<int>();
     }
+
+   else if(strcmp(command, "set_pressure") == 0) {
+    pressure_threshold = doc["pressure"].as<int>();
+    }
   
   // //////////////////////////////////////////////////////////////////////
   else if (strcmp(command, "set_head_settings") == 0) {
@@ -432,6 +443,8 @@ void updateTenzoData() {
     if (LoadCell.update()) {
       currentTenzo = (-LoadCell.getData());  // Получение данных с тензодатчика
 //          Serial.println(currentTenzo);
+//    Serial.println(stepper_base.getCurrent());
+
 
     }
   }
