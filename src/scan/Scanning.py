@@ -380,10 +380,15 @@ class Scanning(QObject):
                                             features =extract_features(wav_data)
                                             input_data = np.array([features], dtype=np.float32)
                                             raw_prediction = self.ml_model.predict(input_data)[0][0]
-                                            if raw_prediction > 0.5:
-                                                current_blade_prediction = True
+                                            if raw_prediction is not None:
+                                                if raw_prediction > 0.5:
+                                                    current_blade_prediction = True
+                                                else:
+                                                    current_blade_prediction = False
                                             else:
-                                                current_blade_prediction = False
+                                                logger.error(f"Ошибка в получении предсказания от ML, статус лопатки переходит в: Не оценено")
+                                                current_blade_prediction = None
+
                                         except Exception as e:
                                             logger.error(f"Ошибка в предсказании статуса лопатки: {e}")
                                     else:

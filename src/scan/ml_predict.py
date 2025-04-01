@@ -33,7 +33,7 @@ def load_model_from_db(disk_type_id):
         if not model_row:
             # Ищем последнюю модель (при желании можно искать по дате и т.д.)
             logger.warning(f"Нет установленной модели для disk_type_id={disk_type_id}")
-            return
+            return None
 
             #ниже закоментирована возможность искать дополнительно просто последнюю модель
 
