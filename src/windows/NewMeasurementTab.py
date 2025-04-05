@@ -361,7 +361,11 @@ class NewMeasurementTab(QWidget):
 
         table.setItem(row_count, 0, QTableWidgetItem(str(blade.disk_scan_id)))
         table.setItem(row_count, 1, QTableWidgetItem(str(blade.num)))
-        result = "Годен" if blade.prediction else "Не годен"
+        result = (
+            "Годен" if blade.prediction is True else
+            "Не годен" if blade.prediction is False else
+            "Не оценено"
+        )
         table.setItem(row_count, 2, QTableWidgetItem(result))
 
         table.scrollToItem(table.item(row_count, 0))
